@@ -1,1 +1,44 @@
-node_modules
+# Build artifacts
+/target/
+debug/
+release/
+
+# Cargo
+Cargo.lock
+!Cargo.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Node
+node_modules/
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+*.log
+logs/
+
+# Coverage
+coverage/
+*.profraw
+*.profdata
+
+# Temporary files
+*.tmp
+*.temp
+.cache/
+
+# Claude Code
+.claude-flow/
