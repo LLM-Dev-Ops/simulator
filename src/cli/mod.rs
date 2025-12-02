@@ -70,8 +70,35 @@ pub enum Commands {
     /// Run in client mode - send requests to a running instance
     Client(ClientCommand),
 
+    /// Run canonical benchmarks and output results
+    Run(RunCommand),
+
     /// Show version and build information
     Version,
+}
+
+/// Run canonical benchmarks
+#[derive(Parser, Debug)]
+pub struct RunCommand {
+    /// Run only specific benchmark targets (comma-separated)
+    #[arg(short, long)]
+    pub targets: Option<String>,
+
+    /// List available benchmark targets
+    #[arg(short, long)]
+    pub list: bool,
+
+    /// Output format (text, json, markdown)
+    #[arg(short, long, default_value = "text")]
+    pub format: String,
+
+    /// Write results to output directory
+    #[arg(short, long)]
+    pub output: bool,
+
+    /// Quiet mode - only output results
+    #[arg(short, long)]
+    pub quiet: bool,
 }
 
 /// Start the simulator server

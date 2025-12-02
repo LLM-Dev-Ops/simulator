@@ -17,7 +17,7 @@ use crate::types::*;
 use super::{
     Cli, Commands, ServeCommand, GenerateCommand, GenerateAction,
     ConfigCommand, ConfigAction, HealthCommand, ModelsCommand,
-    BenchmarkCommand, ClientCommand, ClientAction,
+    BenchmarkCommand, ClientCommand, ClientAction, RunCommand,
 };
 
 /// Execute the CLI command
@@ -41,6 +41,7 @@ pub async fn execute(cli: Cli) -> Result<()> {
         Commands::Models(cmd) => execute_models(cmd, config).await,
         Commands::Benchmark(cmd) => execute_benchmark(cmd).await,
         Commands::Client(cmd) => execute_client(cmd).await,
+        Commands::Run(cmd) => execute_run(cmd).await,
         Commands::Version => execute_version(),
     }
 }
@@ -796,6 +797,115 @@ fn execute_version() -> Result<()> {
     println!("  Deterministic execution with seeds");
     println!("  OpenTelemetry integration");
     println!("  Enterprise-grade security");
+    Ok(())
+}
+
+/// Execute the run command (canonical benchmarks)
+async fn execute_run(cmd: RunCommand) -> Result<()> {
+    use crate::benchmarks::{
+        run_all_benchmarks, run_benchmark, list_benchmarks,
+        generate_report, run_and_save_benchmarks,
+    };
+
+    // List available benchmarks
+    if cmd.list {
+        let benchmarks = list_benchmarks();
+        println!("Available Benchmark Targets:\n");
+        println!("{:<30} {}", "TARGET ID", "DESCRIPTION");
+        println!("{}", "-".repeat(70));
+        for (id, desc) in benchmarks {
+            println!("{:<30} {}", id, desc);
+        }
+        return Ok(());
+    }
+
+    // Run benchmarks
+    let results = if let Some(targets) = &cmd.targets {
+        // Run specific targets
+        let target_ids: Vec<&str> = targets.split(',').map(|s| s.trim()).collect();
+        let mut results = Vec::new();
+
+        for target_id in target_ids {
+            if !cmd.quiet {
+                eprintln!("Running benchmark: {}", target_id);
+            }
+            match run_benchmark(target_id) {
+                Some(result) => results.push(result),
+                None => {
+                    eprintln!("Warning: Unknown benchmark target '{}'", target_id);
+                    eprintln!("Use --list to see available targets");
+                }
+            }
+        }
+        results
+    } else if cmd.output {
+        // Run all and save to output directory
+        run_and_save_benchmarks()?
+    } else {
+        // Run all benchmarks
+        if !cmd.quiet {
+            eprintln!("Running all benchmarks...\n");
+        }
+        run_all_benchmarks()
+    };
+
+    if results.is_empty() {
+        bail!("No benchmark results generated");
+    }
+
+    // Output results in requested format
+    match cmd.format.as_str() {
+        "json" => {
+            println!("{}", serde_json::to_string_pretty(&results)?);
+        }
+        "markdown" | "md" => {
+            println!("{}", generate_report(&results));
+        }
+        _ => {
+            // Text format
+            println!();
+            println!("Benchmark Results");
+            println!("=================\n");
+
+            for result in &results {
+                println!("Target: {}", result.target_id);
+                println!("  Timestamp: {}", result.timestamp.format("%Y-%m-%d %H:%M:%S UTC"));
+
+                if let Some(obj) = result.metrics.as_object() {
+                    for (key, value) in obj {
+                        let formatted_value = match value {
+                            serde_json::Value::Number(n) => {
+                                if let Some(f) = n.as_f64() {
+                                    if f.fract() == 0.0 && f.abs() < 1e10 {
+                                        format!("{:.0}", f)
+                                    } else if f.abs() >= 1000.0 {
+                                        format!("{:.2}", f)
+                                    } else {
+                                        format!("{:.4}", f)
+                                    }
+                                } else {
+                                    n.to_string()
+                                }
+                            }
+                            serde_json::Value::Object(_) => "[object]".to_string(),
+                            serde_json::Value::Array(_) => "[array]".to_string(),
+                            _ => value.to_string(),
+                        };
+                        println!("  {}: {}", key, formatted_value);
+                    }
+                }
+                println!();
+            }
+
+            let passed = results.len();
+            println!("Summary: {} benchmarks completed", passed);
+
+            if cmd.output {
+                println!("\nResults written to src/benchmarks/output/");
+            }
+        }
+    }
+
     Ok(())
 }
 

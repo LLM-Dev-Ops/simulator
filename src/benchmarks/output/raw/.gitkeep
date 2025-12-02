@@ -1,0 +1,2 @@
+# This directory stores individual benchmark result files
+# Files are named: {target_id}_{timestamp}.json
