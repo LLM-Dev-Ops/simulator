@@ -27,6 +27,7 @@
 //! }
 //! ```
 
+pub mod adapters;
 pub mod benchmarks;
 pub mod cli;
 pub mod config;

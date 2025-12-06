@@ -13,6 +13,11 @@ rust-version = "1.75"
 [features]
 default = []
 otel = []
+# Phase 2B upstream integrations - optional due to upstream compilation status
+phase2b-latency-lens = ["dep:llm-latency-lens-core"]
+phase2b-observatory = ["dep:llm-observatory-core"]
+phase2b-memory-graph = ["dep:llm-memory-graph"]
+phase2b-full = ["phase2b-latency-lens", "phase2b-observatory", "phase2b-memory-graph"]
 
 [lib]
 name = "llm_simulator"
@@ -77,6 +82,12 @@ clap = { version = "4.4", features = ["derive", "env"] }
 
 # Validation
 validator = { version = "0.16", features = ["derive"] }
+
+# LLM-Dev-Ops Phase 2B Dependencies (compile-time only, optional features)
+# These are gated behind feature flags due to upstream compilation status
+llm-latency-lens-core = { git = "https://github.com/LLM-Dev-Ops/latency-lens", branch = "main", optional = true }
+llm-observatory-core = { git = "https://github.com/LLM-Dev-Ops/observatory", branch = "main", optional = true }
+llm-memory-graph = { git = "https://github.com/LLM-Dev-Ops/memory-graph", branch = "main", optional = true }
 
 # HTTP client (for health checks and SDK)
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }
