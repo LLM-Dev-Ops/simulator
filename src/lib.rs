@@ -33,6 +33,7 @@ pub mod cli;
 pub mod config;
 pub mod engine;
 pub mod error;
+pub mod infra;
 pub mod latency;
 pub mod providers;
 pub mod sdk;
@@ -44,6 +45,7 @@ pub mod types;
 pub use config::SimulatorConfig;
 pub use engine::SimulationEngine;
 pub use error::{SimulationError, SimulatorResult};
+pub use infra::{Cache, CacheConfig, InfraContext, RetryPolicy, RetryConfig};
 pub use server::run_server;
 
 /// Library version

@@ -13,11 +13,13 @@ rust-version = "1.75"
 [features]
 default = []
 otel = []
+# Phase 2B Infrastructure utilities (caching, retry, backoff)
+phase2b-infra = []
 # Phase 2B upstream integrations - optional due to upstream compilation status
 phase2b-latency-lens = ["dep:llm-latency-lens-core"]
 phase2b-observatory = ["dep:llm-observatory-core"]
 phase2b-memory-graph = ["dep:llm-memory-graph"]
-phase2b-full = ["phase2b-latency-lens", "phase2b-observatory", "phase2b-memory-graph"]
+phase2b-full = ["phase2b-infra", "phase2b-latency-lens", "phase2b-observatory", "phase2b-memory-graph"]
 
 [lib]
 name = "llm_simulator"

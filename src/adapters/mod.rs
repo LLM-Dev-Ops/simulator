@@ -10,6 +10,7 @@
 //! - A consumer trait defining the consumption interface
 //! - Data transformation utilities
 //! - Integration hooks for the simulator
+//! - Infrastructure utilities for caching and retry logic
 //!
 //! ## Adapters
 //!
@@ -17,6 +18,13 @@
 //! - `observatory`: Consumes telemetry, trace spans, runtime state transitions
 //! - `router`: Consumes routing decisions and conditional branching logic
 //! - `memory_graph`: Consumes lineage and graph-based context states
+//!
+//! ## Infrastructure Integration
+//!
+//! All adapters can optionally use the `infra` module for:
+//! - Caching consumed data with configurable TTL
+//! - Retry logic with exponential backoff for upstream calls
+//! - Shared infrastructure context across adapters
 
 pub mod latency_lens;
 pub mod observatory;
@@ -32,13 +40,28 @@ pub use memory_graph::MemoryGraphConsumer;
 use std::sync::Arc;
 use parking_lot::RwLock;
 
+use crate::infra::{InfraContext, SharedInfraContext, shared_infra_context};
+
 /// Unified adapter registry for managing all Phase 2B integrations
-#[derive(Default)]
 pub struct AdapterRegistry {
     latency_lens: Option<Arc<dyn LatencyLensConsumer>>,
     observatory: Option<Arc<dyn ObservatoryConsumer>>,
     router: Option<Arc<dyn RouterConsumer>>,
     memory_graph: Option<Arc<dyn MemoryGraphConsumer>>,
+    /// Shared infrastructure context for caching and retry
+    infra: SharedInfraContext,
+}
+
+impl Default for AdapterRegistry {
+    fn default() -> Self {
+        Self {
+            latency_lens: None,
+            observatory: None,
+            router: None,
+            memory_graph: None,
+            infra: shared_infra_context(),
+        }
+    }
 }
 
 impl AdapterRegistry {
@@ -97,6 +120,27 @@ impl AdapterRegistry {
             || self.observatory.is_some()
             || self.router.is_some()
             || self.memory_graph.is_some()
+    }
+
+    /// Get the shared infrastructure context
+    pub fn infra(&self) -> &SharedInfraContext {
+        &self.infra
+    }
+
+    /// Set a custom infrastructure context
+    pub fn with_infra(mut self, infra: SharedInfraContext) -> Self {
+        self.infra = infra;
+        self
+    }
+
+    /// Get cache statistics from the infrastructure context
+    pub fn cache_stats(&self) -> crate::infra::CacheStats {
+        self.infra.read().cache_stats()
+    }
+
+    /// Clear the infrastructure cache
+    pub fn clear_cache(&self) {
+        self.infra.read().clear_cache();
     }
 }
 
