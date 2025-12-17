@@ -48,6 +48,13 @@ pub use error::{SimulationError, SimulatorResult};
 pub use infra::{Cache, CacheConfig, InfraContext, RetryPolicy, RetryConfig};
 pub use server::run_server;
 
+// Re-export RuvVector adapter types for easy integration
+pub use adapters::ruvvector::{
+    RuvVectorAdapter, RuvVectorConfig, RuvVectorError, RuvVectorConsumer,
+    OptionalRuvVectorAdapter, QueryRequest, QueryResponse, QueryResult,
+    SimulateRequest, SimulateResponse, RUVVECTOR_SERVICE_URL_ENV,
+};
+
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 

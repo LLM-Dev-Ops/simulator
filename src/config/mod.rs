@@ -23,6 +23,76 @@ use std::time::Duration;
 use crate::error::{SimulationError, SimulatorResult};
 use crate::types::Provider;
 
+/// Configuration for RuvVector service integration
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RuvVectorIntegrationConfig {
+    /// Enable RuvVector service integration
+    pub enabled: bool,
+    /// Service URL (overrides RUVVECTOR_SERVICE_URL env var if set)
+    pub service_url: Option<String>,
+    /// Request timeout in seconds
+    pub timeout_secs: u64,
+    /// Enable response caching
+    pub cache_enabled: bool,
+    /// Cache TTL in seconds
+    pub cache_ttl_secs: u64,
+    /// Enable retry on transient failures
+    pub retry_enabled: bool,
+    /// Maximum retry attempts
+    pub max_retries: u32,
+    /// Fallback to mock data if service unavailable
+    pub fallback_to_mock: bool,
+    /// Require RuvVector to be available (fail if not)
+    pub require_ruvvector: bool,
+    /// Allow mock generators when RuvVector is unavailable
+    pub allow_mocks: bool,
+}
+
+impl Default for RuvVectorIntegrationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true, // RuvVector-first: enabled by default
+            service_url: None, // Will use RUVVECTOR_SERVICE_URL env var
+            timeout_secs: 30,
+            cache_enabled: false, // RuvVector owns caching per SPARC
+            cache_ttl_secs: 300,
+            retry_enabled: true,
+            max_retries: 3,
+            fallback_to_mock: false, // RuvVector-first: no fallback by default
+            require_ruvvector: true, // RuvVector-first: require RuvVector by default
+            allow_mocks: false, // RuvVector-first: no mocks by default
+        }
+    }
+}
+
+impl RuvVectorIntegrationConfig {
+    /// Check if integration should be attempted
+    pub fn should_integrate(&self) -> bool {
+        self.enabled && (self.service_url.is_some() || std::env::var("RUVVECTOR_SERVICE_URL").is_ok())
+    }
+
+    /// Convert to adapter configuration
+    pub fn to_adapter_config(&self) -> Option<crate::adapters::ruvvector::RuvVectorConfig> {
+        if !self.enabled {
+            return None;
+        }
+
+        let service_url = self.service_url.clone()
+            .or_else(|| std::env::var("RUVVECTOR_SERVICE_URL").ok())?;
+
+        Some(crate::adapters::ruvvector::RuvVectorConfig {
+            service_url,
+            timeout_secs: self.timeout_secs,
+            cache_enabled: self.cache_enabled,
+            cache_ttl_secs: self.cache_ttl_secs,
+            retry_enabled: self.retry_enabled,
+            max_retries: self.max_retries,
+            ..Default::default()
+        })
+    }
+}
+
 /// Main configuration structure
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -44,6 +114,9 @@ pub struct SimulatorConfig {
     pub default_provider: Provider,
     /// Seed for deterministic behavior (None = random)
     pub seed: Option<u64>,
+    /// RuvVector service integration settings
+    #[serde(default)]
+    pub ruvvector: RuvVectorIntegrationConfig,
 }
 
 impl Default for SimulatorConfig {
@@ -81,6 +154,7 @@ impl Default for SimulatorConfig {
             security: SecurityConfig::default(),
             default_provider: Provider::OpenAI,
             seed: None,
+            ruvvector: RuvVectorIntegrationConfig::default(),
         }
     }
 }
@@ -137,6 +211,33 @@ impl SimulatorConfig {
             config.latency.enabled = val.parse().unwrap_or(true);
         }
 
+        // RuvVector integration overrides
+        if let Ok(val) = std::env::var("RUVVECTOR_ENABLED") {
+            config.ruvvector.enabled = val.parse().unwrap_or(false);
+        }
+
+        if let Ok(url) = std::env::var("RUVVECTOR_SERVICE_URL") {
+            if !url.is_empty() {
+                config.ruvvector.service_url = Some(url);
+                // Auto-enable if URL is set
+                if std::env::var("RUVVECTOR_ENABLED").is_err() {
+                    config.ruvvector.enabled = true;
+                }
+            }
+        }
+
+        if let Ok(val) = std::env::var("RUVVECTOR_FALLBACK_TO_MOCK") {
+            config.ruvvector.fallback_to_mock = val.parse().unwrap_or(true);
+        }
+
+        if let Ok(val) = std::env::var("RUVVECTOR_REQUIRE") {
+            config.ruvvector.require_ruvvector = val.parse().unwrap_or(true);
+        }
+
+        if let Ok(val) = std::env::var("RUVVECTOR_ALLOW_MOCKS") {
+            config.ruvvector.allow_mocks = val.parse().unwrap_or(false);
+        }
+
         config.validate()?;
         Ok(config)
     }
@@ -184,6 +285,7 @@ impl SimulatorConfig {
             security: SecurityConfig::default(),
             default_provider: Provider::OpenAI,
             seed: None,
+            ruvvector: RuvVectorIntegrationConfig::default(), // Keep RuvVector, it's now required
         }
     }
 

@@ -18,6 +18,7 @@
 //! - `observatory`: Consumes telemetry, trace spans, runtime state transitions
 //! - `router`: Consumes routing decisions and conditional branching logic
 //! - `memory_graph`: Consumes lineage and graph-based context states
+//! - `ruvvector`: HTTP client for external ruvvector-service (/query, /simulate endpoints)
 //!
 //! ## Infrastructure Integration
 //!
@@ -30,12 +31,14 @@ pub mod latency_lens;
 pub mod observatory;
 pub mod router;
 pub mod memory_graph;
+pub mod ruvvector;
 
 // Re-export primary consumer traits
 pub use latency_lens::LatencyLensConsumer;
 pub use observatory::ObservatoryConsumer;
 pub use router::RouterConsumer;
 pub use memory_graph::MemoryGraphConsumer;
+pub use ruvvector::{RuvVectorConsumer, RuvVectorAdapter, RuvVectorConfig, RuvVectorError, OptionalRuvVectorAdapter};
 
 use std::sync::Arc;
 use parking_lot::RwLock;
@@ -48,6 +51,7 @@ pub struct AdapterRegistry {
     observatory: Option<Arc<dyn ObservatoryConsumer>>,
     router: Option<Arc<dyn RouterConsumer>>,
     memory_graph: Option<Arc<dyn MemoryGraphConsumer>>,
+    ruvvector: Option<Arc<dyn RuvVectorConsumer>>,
     /// Shared infrastructure context for caching and retry
     infra: SharedInfraContext,
 }
@@ -59,6 +63,7 @@ impl Default for AdapterRegistry {
             observatory: None,
             router: None,
             memory_graph: None,
+            ruvvector: None,
             infra: shared_infra_context(),
         }
     }
@@ -94,6 +99,12 @@ impl AdapterRegistry {
         self
     }
 
+    /// Register a RuvVector consumer
+    pub fn with_ruvvector(mut self, consumer: Arc<dyn RuvVectorConsumer>) -> Self {
+        self.ruvvector = Some(consumer);
+        self
+    }
+
     /// Get the latency lens consumer if registered
     pub fn latency_lens(&self) -> Option<&Arc<dyn LatencyLensConsumer>> {
         self.latency_lens.as_ref()
@@ -114,12 +125,18 @@ impl AdapterRegistry {
         self.memory_graph.as_ref()
     }
 
+    /// Get the RuvVector consumer if registered
+    pub fn ruvvector(&self) -> Option<&Arc<dyn RuvVectorConsumer>> {
+        self.ruvvector.as_ref()
+    }
+
     /// Check if any adapters are registered
     pub fn has_adapters(&self) -> bool {
         self.latency_lens.is_some()
             || self.observatory.is_some()
             || self.router.is_some()
             || self.memory_graph.is_some()
+            || self.ruvvector.is_some()
     }
 
     /// Get the shared infrastructure context

@@ -49,6 +49,12 @@ pub enum SimulationError {
     #[error("Service unavailable: {0}")]
     ServiceUnavailable(String),
 
+    #[error("RuvVector service unavailable: {message}")]
+    RuvVectorUnavailable {
+        message: String,
+        retry_after_secs: Option<u64>,
+    },
+
     #[error("Internal error: {0}")]
     Internal(String),
 
@@ -152,6 +158,7 @@ impl SimulationError {
             Self::AuthenticationFailed(_) => StatusCode::UNAUTHORIZED,
             Self::PermissionDenied(_) => StatusCode::FORBIDDEN,
             Self::ServiceUnavailable(_) => StatusCode::SERVICE_UNAVAILABLE,
+            Self::RuvVectorUnavailable { .. } => StatusCode::SERVICE_UNAVAILABLE,
             Self::Internal(_) => StatusCode::INTERNAL_SERVER_ERROR,
             Self::Injected { status_code, .. } => {
                 StatusCode::from_u16(*status_code).unwrap_or(StatusCode::INTERNAL_SERVER_ERROR)
@@ -172,6 +179,7 @@ impl SimulationError {
             Self::AuthenticationFailed(_) => "authentication_error",
             Self::PermissionDenied(_) => "permission_error",
             Self::ServiceUnavailable(_) => "service_unavailable",
+            Self::RuvVectorUnavailable { .. } => "ruvvector_unavailable",
             Self::Internal(_) => "internal_error",
             Self::Injected { error_type, .. } => match error_type {
                 InjectedErrorType::InvalidRequest => "invalid_request_error",
@@ -216,6 +224,14 @@ impl IntoResponse for SimulationError {
             );
         }
 
+        // Add retry-after header for RuvVector unavailable
+        if let SimulationError::RuvVectorUnavailable { retry_after_secs: Some(secs), .. } = &self {
+            response.headers_mut().insert(
+                "retry-after",
+                secs.to_string().parse().unwrap(),
+            );
+        }
+
         response
     }
 }
@@ -238,6 +254,35 @@ impl From<serde_json::Error> for SimulationError {
 impl From<config::ConfigError> for SimulationError {
     fn from(err: config::ConfigError) -> Self {
         Self::Config(err.to_string())
+    }
+}
+
+impl From<crate::adapters::ruvvector::RuvVectorError> for SimulationError {
+    fn from(err: crate::adapters::ruvvector::RuvVectorError) -> Self {
+        use crate::adapters::ruvvector::RuvVectorError;
+        match err {
+            RuvVectorError::NotConfigured => Self::RuvVectorUnavailable {
+                message: "RuvVector service not configured".to_string(),
+                retry_after_secs: Some(60),
+            },
+            RuvVectorError::ServiceUnavailable(msg) => Self::RuvVectorUnavailable {
+                message: msg,
+                retry_after_secs: Some(60),
+            },
+            RuvVectorError::ConnectionFailed(msg) => Self::RuvVectorUnavailable {
+                message: format!("Connection failed: {}", msg),
+                retry_after_secs: Some(30),
+            },
+            RuvVectorError::Timeout(d) => Self::Timeout(d),
+            RuvVectorError::MocksDisabled => Self::RuvVectorUnavailable {
+                message: "Mock generators disabled and RuvVector unavailable".to_string(),
+                retry_after_secs: None,
+            },
+            other => Self::RuvVectorUnavailable {
+                message: other.to_string(),
+                retry_after_secs: Some(60),
+            },
+        }
     }
 }
 

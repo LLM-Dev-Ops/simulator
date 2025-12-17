@@ -8,6 +8,9 @@ use llm_simulator::config::{
 
 fn config_with_auth() -> SimulatorConfig {
     let mut config = SimulatorConfig::default();
+    // For tests, disable RuvVector requirement and allow mocks
+    config.ruvvector.require_ruvvector = false;
+    config.ruvvector.allow_mocks = true;
     config.security.api_keys = ApiKeyConfig {
         enabled: true,
         allow_anonymous_health: true,

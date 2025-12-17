@@ -25,8 +25,14 @@ pub struct TestServer {
 
 impl TestServer {
     /// Spawn a test server with default configuration
+    /// Note: Uses a test configuration that allows mocks since RuvVector is not available
     pub async fn spawn() -> Self {
-        Self::spawn_with_config(SimulatorConfig::default()).await
+        let mut config = SimulatorConfig::default();
+        // For integration tests, disable RuvVector requirement and allow mocks
+        // since RuvVector service is not available in test environment
+        config.ruvvector.require_ruvvector = false;
+        config.ruvvector.allow_mocks = true;
+        Self::spawn_with_config(config).await
     }
 
     /// Spawn a test server with custom configuration

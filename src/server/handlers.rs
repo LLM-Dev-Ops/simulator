@@ -362,7 +362,14 @@ pub async fn health_check(
     }
     checks.insert("memory".to_string(), memory_check);
 
-    // Check 5: Shutdown state
+    // Check 5: RuvVector availability
+    let ruvvector_check = check_ruvvector(&state);
+    if ruvvector_check.status == ComponentStatus::Fail && state.config.ruvvector.require_ruvvector {
+        overall_status = HealthStatus::Unhealthy;
+    }
+    checks.insert("ruvvector".to_string(), ruvvector_check);
+
+    // Check 6: Shutdown state
     if state.shutdown.is_draining() {
         overall_status = HealthStatus::Unhealthy;
         checks.insert("shutdown".to_string(), ComponentHealth {
@@ -405,6 +412,17 @@ pub async fn ready_check(
             Json(ReadyResponse {
                 ready: false,
                 reason: Some("Engine not initialized".to_string()),
+            }),
+        );
+    }
+
+    // Check if RuvVector is required and available
+    if state.config.ruvvector.require_ruvvector && !state.engine.ruvvector_available() {
+        return (
+            StatusCode::SERVICE_UNAVAILABLE,
+            Json(ReadyResponse {
+                ready: false,
+                reason: Some("RuvVector service not available".to_string()),
             }),
         );
     }
@@ -479,6 +497,36 @@ fn check_memory() -> ComponentHealth {
         message: Some("Memory usage normal".to_string()),
         latency_ms: None,
         value: None,
+    }
+}
+
+fn check_ruvvector(state: &AppState) -> ComponentHealth {
+    // Check if RuvVector is required by configuration
+    if state.config.ruvvector.require_ruvvector {
+        // Check if RuvVector is available via the engine
+        if state.engine.ruvvector_available() {
+            ComponentHealth {
+                status: ComponentStatus::Pass,
+                message: Some("RuvVector configured".to_string()),
+                latency_ms: None,
+                value: None,
+            }
+        } else {
+            ComponentHealth {
+                status: ComponentStatus::Fail,
+                message: Some("RuvVector not configured".to_string()),
+                latency_ms: None,
+                value: None,
+            }
+        }
+    } else {
+        // RuvVector not required, so report as Pass
+        ComponentHealth {
+            status: ComponentStatus::Pass,
+            message: Some("RuvVector not required".to_string()),
+            latency_ms: None,
+            value: None,
+        }
     }
 }
 

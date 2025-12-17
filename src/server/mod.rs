@@ -26,7 +26,7 @@ use tower_http::{
     trace::TraceLayer,
     compression::CompressionLayer,
 };
-use tracing::info;
+use tracing::{info, warn};
 
 use crate::config::SimulatorConfig;
 use crate::engine::SimulationEngine;
@@ -41,6 +41,31 @@ pub async fn run_server(config: SimulatorConfig) -> anyhow::Result<()> {
     // Create the simulation engine
     let engine = Arc::new(SimulationEngine::new(config.clone()));
     let metrics = Arc::new(SimulatorMetrics::new());
+
+    // Validate RuvVector configuration on startup
+    if config.ruvvector.require_ruvvector {
+        let service_url = config.ruvvector.service_url.clone()
+            .or_else(|| std::env::var("RUVVECTOR_SERVICE_URL").ok());
+
+        if service_url.is_none() || service_url.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
+            return Err(anyhow::anyhow!(
+                "ruvvector.require_ruvvector is true but RUVVECTOR_SERVICE_URL not set"
+            ));
+        }
+
+        if !engine.ruvvector_available() {
+            return Err(anyhow::anyhow!(
+                "ruvvector.require_ruvvector is true but RuvVector service is not available"
+            ));
+        }
+
+        info!("RuvVector connectivity verified");
+    }
+
+    // Log warning if mocks are enabled
+    if config.ruvvector.allow_mocks {
+        warn!("Mock generators enabled - ensure this is not production");
+    }
 
     // Create security state
     let security_state = SecurityState::new(&config.security);
