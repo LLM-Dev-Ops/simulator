@@ -1,4 +1,4 @@
-//! Phase 2B Adapter Modules
+//! Phase 2B+ Adapter Modules
 //!
 //! Thin runtime consumption layers for integrating with LLM-Dev-Ops ecosystem.
 //! These adapters consume data from upstream dependencies without modifying
@@ -19,6 +19,7 @@
 //! - `router`: Consumes routing decisions and conditional branching logic
 //! - `memory_graph`: Consumes lineage and graph-based context states
 //! - `ruvvector`: HTTP client for external ruvvector-service (/query, /simulate endpoints)
+//! - `intelligence`: Phase 7 Intelligence & Expansion (Layer 2) signal emission
 //!
 //! ## Infrastructure Integration
 //!
@@ -32,6 +33,7 @@ pub mod observatory;
 pub mod router;
 pub mod memory_graph;
 pub mod ruvvector;
+pub mod intelligence;
 
 // Re-export primary consumer traits
 pub use latency_lens::LatencyLensConsumer;
@@ -40,18 +42,30 @@ pub use router::RouterConsumer;
 pub use memory_graph::MemoryGraphConsumer;
 pub use ruvvector::{RuvVectorConsumer, RuvVectorAdapter, RuvVectorConfig, RuvVectorError, OptionalRuvVectorAdapter};
 
+// Phase 7: Intelligence & Expansion (Layer 2)
+pub use intelligence::{
+    IntelligenceConsumer, IntelligenceAdapter, IntelligenceConfig, IntelligenceError,
+    IntelligenceStats, OptionalIntelligenceAdapter,
+    SignalType, DecisionSignal, SignalPayload,
+    HypothesisPayload, SimulationOutcomePayload, ConfidenceDeltaPayload,
+    ReasoningContext, SimulationScenario, ConfidenceAssessment,
+    MAX_TOKENS, MAX_LATENCY_MS,
+};
+
 use std::sync::Arc;
 use parking_lot::RwLock;
 
 use crate::infra::{InfraContext, SharedInfraContext, shared_infra_context};
 
-/// Unified adapter registry for managing all Phase 2B integrations
+/// Unified adapter registry for managing all Phase 2B+ integrations
 pub struct AdapterRegistry {
     latency_lens: Option<Arc<dyn LatencyLensConsumer>>,
     observatory: Option<Arc<dyn ObservatoryConsumer>>,
     router: Option<Arc<dyn RouterConsumer>>,
     memory_graph: Option<Arc<dyn MemoryGraphConsumer>>,
     ruvvector: Option<Arc<dyn RuvVectorConsumer>>,
+    /// Phase 7: Intelligence & Expansion (Layer 2)
+    intelligence: Option<Arc<dyn IntelligenceConsumer>>,
     /// Shared infrastructure context for caching and retry
     infra: SharedInfraContext,
 }
@@ -64,6 +78,7 @@ impl Default for AdapterRegistry {
             router: None,
             memory_graph: None,
             ruvvector: None,
+            intelligence: None,
             infra: shared_infra_context(),
         }
     }
@@ -105,6 +120,12 @@ impl AdapterRegistry {
         self
     }
 
+    /// Register an intelligence consumer (Phase 7)
+    pub fn with_intelligence(mut self, consumer: Arc<dyn IntelligenceConsumer>) -> Self {
+        self.intelligence = Some(consumer);
+        self
+    }
+
     /// Get the latency lens consumer if registered
     pub fn latency_lens(&self) -> Option<&Arc<dyn LatencyLensConsumer>> {
         self.latency_lens.as_ref()
@@ -130,6 +151,11 @@ impl AdapterRegistry {
         self.ruvvector.as_ref()
     }
 
+    /// Get the intelligence consumer if registered (Phase 7)
+    pub fn intelligence(&self) -> Option<&Arc<dyn IntelligenceConsumer>> {
+        self.intelligence.as_ref()
+    }
+
     /// Check if any adapters are registered
     pub fn has_adapters(&self) -> bool {
         self.latency_lens.is_some()
@@ -137,6 +163,7 @@ impl AdapterRegistry {
             || self.router.is_some()
             || self.memory_graph.is_some()
             || self.ruvvector.is_some()
+            || self.intelligence.is_some()
     }
 
     /// Get the shared infrastructure context

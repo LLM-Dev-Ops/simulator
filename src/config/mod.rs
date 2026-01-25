@@ -23,6 +23,56 @@ use std::time::Duration;
 use crate::error::{SimulationError, SimulatorResult};
 use crate::types::Provider;
 
+/// Configuration for Phase 7 Intelligence & Expansion (Layer 2)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct IntelligenceIntegrationConfig {
+    /// Enable intelligence layer
+    pub enabled: bool,
+    /// Maximum tokens per operation (budget)
+    pub max_tokens: u32,
+    /// Maximum latency in milliseconds (budget)
+    pub max_latency_ms: u64,
+    /// Enable result caching
+    pub cache_enabled: bool,
+    /// Cache TTL in seconds
+    pub cache_ttl_secs: u64,
+    /// Enable retry on failures
+    pub retry_enabled: bool,
+    /// Maximum retry attempts
+    pub max_retries: u32,
+}
+
+impl Default for IntelligenceIntegrationConfig {
+    fn default() -> Self {
+        Self {
+            enabled: true,
+            max_tokens: 2500,      // Phase 7 budget
+            max_latency_ms: 5000,  // Phase 7 budget
+            cache_enabled: true,
+            cache_ttl_secs: 300,
+            retry_enabled: true,
+            max_retries: 3,
+        }
+    }
+}
+
+impl IntelligenceIntegrationConfig {
+    /// Convert to adapter configuration
+    pub fn to_adapter_config(&self) -> crate::adapters::intelligence::IntelligenceConfig {
+        crate::adapters::intelligence::IntelligenceConfig {
+            enabled: self.enabled,
+            max_tokens: self.max_tokens,
+            max_latency_ms: self.max_latency_ms,
+            cache_enabled: self.cache_enabled,
+            cache_ttl_secs: self.cache_ttl_secs,
+            retry_enabled: self.retry_enabled,
+            max_retries: self.max_retries,
+            ruvvector_url: None, // Derived from RuvVector config
+        }
+    }
+}
+
 /// Configuration for RuvVector service integration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
@@ -117,6 +167,9 @@ pub struct SimulatorConfig {
     /// RuvVector service integration settings
     #[serde(default)]
     pub ruvvector: RuvVectorIntegrationConfig,
+    /// Phase 7: Intelligence & Expansion (Layer 2) settings
+    #[serde(default)]
+    pub intelligence: IntelligenceIntegrationConfig,
 }
 
 impl Default for SimulatorConfig {
@@ -155,6 +208,7 @@ impl Default for SimulatorConfig {
             default_provider: Provider::OpenAI,
             seed: None,
             ruvvector: RuvVectorIntegrationConfig::default(),
+            intelligence: IntelligenceIntegrationConfig::default(),
         }
     }
 }
@@ -238,6 +292,19 @@ impl SimulatorConfig {
             config.ruvvector.allow_mocks = val.parse().unwrap_or(false);
         }
 
+        // Phase 7: Intelligence integration overrides
+        if let Ok(val) = std::env::var("INTELLIGENCE_ENABLED") {
+            config.intelligence.enabled = val.parse().unwrap_or(true);
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_MAX_TOKENS") {
+            config.intelligence.max_tokens = val.parse().unwrap_or(2500);
+        }
+
+        if let Ok(val) = std::env::var("INTELLIGENCE_MAX_LATENCY_MS") {
+            config.intelligence.max_latency_ms = val.parse().unwrap_or(5000);
+        }
+
         config.validate()?;
         Ok(config)
     }
@@ -286,6 +353,7 @@ impl SimulatorConfig {
             default_provider: Provider::OpenAI,
             seed: None,
             ruvvector: RuvVectorIntegrationConfig::default(), // Keep RuvVector, it's now required
+            intelligence: IntelligenceIntegrationConfig::default(), // Phase 7: required
         }
     }
 

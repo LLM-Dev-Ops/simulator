@@ -55,6 +55,16 @@ pub use adapters::ruvvector::{
     SimulateRequest, SimulateResponse, RUVVECTOR_SERVICE_URL_ENV,
 };
 
+// Re-export Phase 7 Intelligence & Expansion (Layer 2) types
+pub use adapters::intelligence::{
+    IntelligenceAdapter, IntelligenceConfig, IntelligenceError, IntelligenceConsumer,
+    IntelligenceStats, OptionalIntelligenceAdapter,
+    SignalType, DecisionSignal, SignalPayload,
+    HypothesisPayload, SimulationOutcomePayload, ConfidenceDeltaPayload,
+    ReasoningContext, SimulationScenario, ConfidenceAssessment,
+    MAX_TOKENS, MAX_LATENCY_MS,
+};
+
 /// Library version
 pub const VERSION: &str = env!("CARGO_PKG_VERSION");
 
