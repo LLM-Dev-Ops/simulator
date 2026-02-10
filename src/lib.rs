@@ -55,6 +55,12 @@ pub use adapters::ruvvector::{
     SimulateRequest, SimulateResponse, RUVVECTOR_SERVICE_URL_ENV,
 };
 
+// Re-export FEU (Foundational Execution Unit) types
+pub use telemetry::{
+    FeuSpanCollector, FeuValidationError, ExecutionTrace, SpanArtifact, FEU_ROOT_PARENT,
+};
+pub use adapters::observatory::FeuSpanKind;
+
 // Re-export Phase 7 Intelligence & Expansion (Layer 2) types
 pub use adapters::intelligence::{
     IntelligenceAdapter, IntelligenceConfig, IntelligenceError, IntelligenceConsumer,

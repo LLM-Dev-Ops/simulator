@@ -23,6 +23,17 @@ use std::time::Duration;
 use async_trait::async_trait;
 use serde::{Deserialize, Serialize};
 
+/// Classifies a span within the FEU (Foundational Execution Unit) hierarchy.
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum FeuSpanKind {
+    /// The top-level repo execution span. Exactly one per execution.
+    Repo,
+    /// An agent-level span. One per adapter/agent invoked.
+    Agent,
+    /// A leaf operation span nested under an agent.
+    Operation,
+}
+
 /// Trace span data consumed from LLM-Observatory
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ConsumedSpan {
@@ -58,6 +69,9 @@ pub struct ConsumedSpan {
     pub start_time: u64,
     /// End timestamp (unix millis)
     pub end_time: Option<u64>,
+    /// FEU span classification
+    #[serde(default)]
+    pub span_kind: Option<FeuSpanKind>,
 }
 
 /// Summary of span input data
@@ -100,6 +114,8 @@ pub enum SpanStatus {
     Ok,
     /// Operation failed with error
     Error,
+    /// Unrecoverable failure — triggers propagation to parent span
+    Failed,
     /// Status not set
     Unset,
 }
@@ -293,12 +309,14 @@ impl ObservatoryAdapter {
         name: &str,
         provider: Option<&str>,
         model: Option<&str>,
+        parent_span_id: Option<&str>,
+        span_kind: Option<FeuSpanKind>,
     ) -> ConsumedSpan {
         // Bridge conversion - ready for upstream types when available
         ConsumedSpan {
             span_id: span_id.to_string(),
             trace_id: trace_id.to_string(),
-            parent_span_id: None,
+            parent_span_id: parent_span_id.map(|s| s.to_string()),
             name: name.to_string(),
             provider: provider.map(|s| s.to_string()),
             model: model.map(|s| s.to_string()),
@@ -312,6 +330,7 @@ impl ObservatoryAdapter {
             events: Vec::new(),
             start_time: chrono::Utc::now().timestamp_millis() as u64,
             end_time: None,
+            span_kind,
         }
     }
 }
@@ -470,12 +489,52 @@ mod tests {
             events: Vec::new(),
             start_time: 1000,
             end_time: Some(1250),
+            span_kind: None,
         };
 
         assert!(span.is_success());
         assert!(!span.is_error());
         assert_eq!(span.total_tokens(), Some(150));
         assert_eq!(span.duration_ms(), Some(250.0));
+    }
+
+    #[test]
+    fn test_span_with_feu_kind() {
+        let span = ConsumedSpan {
+            span_id: "span-feu".to_string(),
+            trace_id: "trace-feu".to_string(),
+            parent_span_id: Some("parent-123".to_string()),
+            name: "agent:intelligence".to_string(),
+            provider: None,
+            model: None,
+            input_summary: None,
+            output_summary: None,
+            token_usage: None,
+            cost_usd: None,
+            latency_ms: None,
+            status: SpanStatus::Ok,
+            attributes: HashMap::new(),
+            events: Vec::new(),
+            start_time: 1000,
+            end_time: Some(1250),
+            span_kind: Some(FeuSpanKind::Agent),
+        };
+
+        assert_eq!(span.span_kind, Some(FeuSpanKind::Agent));
+        assert_eq!(span.parent_span_id, Some("parent-123".to_string()));
+
+        // Verify serialization round-trip
+        let json = serde_json::to_string(&span).unwrap();
+        let deserialized: ConsumedSpan = serde_json::from_str(&json).unwrap();
+        assert_eq!(deserialized.span_kind, Some(FeuSpanKind::Agent));
+    }
+
+    #[test]
+    fn test_span_status_failed() {
+        let status = SpanStatus::Failed;
+        assert_ne!(status, SpanStatus::Error);
+        assert_ne!(status, SpanStatus::Ok);
+        assert_ne!(status, SpanStatus::Unset);
     }
 
     #[test]

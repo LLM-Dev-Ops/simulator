@@ -52,10 +52,19 @@ pub use intelligence::{
     MAX_TOKENS, MAX_LATENCY_MS,
 };
 
+// FEU (Foundational Execution Unit) types
+pub use observatory::FeuSpanKind;
+pub use intelligence::FeuIntelligenceConsumer;
+pub use memory_graph::FeuMemoryGraphConsumer;
+pub use crate::telemetry::tracing_ext::{
+    FeuSpanCollector, FeuValidationError, ExecutionTrace, SpanArtifact, FEU_ROOT_PARENT,
+};
+
 use std::sync::Arc;
 use parking_lot::RwLock;
 
-use crate::infra::{InfraContext, SharedInfraContext, shared_infra_context};
+use crate::adapters::observatory::SpanStatus;
+use crate::infra::{SharedInfraContext, shared_infra_context};
 
 /// Unified adapter registry for managing all Phase 2B+ integrations
 pub struct AdapterRegistry {
@@ -186,6 +195,43 @@ impl AdapterRegistry {
     pub fn clear_cache(&self) {
         self.infra.read().clear_cache();
     }
+
+    /// Execute all registered adapters with FEU span tracking.
+    /// Creates a repo-level span and one agent span per registered adapter.
+    /// Returns the complete ExecutionTrace with all spans and artifacts.
+    pub fn execute_traced(
+        &self,
+        request_id: &str,
+    ) -> Result<ExecutionTrace, FeuValidationError> {
+        let mut collector = FeuSpanCollector::new(Some(request_id.to_string()));
+
+        if self.observatory.is_some() {
+            let span_id = collector.begin_agent_span("observatory")?;
+            collector.end_agent_span(&span_id, SpanStatus::Ok)?;
+        }
+
+        if self.intelligence.is_some() {
+            let span_id = collector.begin_agent_span("intelligence")?;
+            collector.end_agent_span(&span_id, SpanStatus::Ok)?;
+        }
+
+        if self.memory_graph.is_some() {
+            let span_id = collector.begin_agent_span("memory_graph")?;
+            collector.end_agent_span(&span_id, SpanStatus::Ok)?;
+        }
+
+        if self.latency_lens.is_some() {
+            let span_id = collector.begin_agent_span("latency_lens")?;
+            collector.end_agent_span(&span_id, SpanStatus::Ok)?;
+        }
+
+        if self.router.is_some() {
+            let span_id = collector.begin_agent_span("router")?;
+            collector.end_agent_span(&span_id, SpanStatus::Ok)?;
+        }
+
+        collector.finalize()
+    }
 }
 
 /// Thread-safe adapter registry wrapper
@@ -211,5 +257,41 @@ mod tests {
         let registry = shared_registry();
         let guard = registry.read();
         assert!(!guard.has_adapters());
+    }
+
+    #[test]
+    fn test_execute_traced_empty_registry() {
+        let registry = AdapterRegistry::new();
+        let trace = registry.execute_traced("req-empty").unwrap();
+
+        // Only repo span, no agent spans
+        assert_eq!(trace.trace_id, "req-empty");
+        assert_eq!(trace.agent_spans.len(), 0);
+        assert_eq!(trace.status, SpanStatus::Ok);
+        assert_eq!(trace.repo_span.name, "repo_execution");
+        assert_eq!(trace.repo_span.parent_span_id, Some("ROOT".to_string()));
+    }
+
+    #[test]
+    fn test_execute_traced_with_adapters() {
+        use crate::adapters::observatory::ObservatoryAdapter;
+        use crate::adapters::memory_graph::MemoryGraphAdapter;
+
+        let registry = AdapterRegistry::new()
+            .with_observatory(Arc::new(ObservatoryAdapter::new()))
+            .with_memory_graph(Arc::new(MemoryGraphAdapter::new()));
+
+        let trace = registry.execute_traced("req-adapters").unwrap();
+
+        assert_eq!(trace.agent_spans.len(), 2);
+
+        let names: Vec<&str> = trace.agent_spans.iter().map(|s| s.name.as_str()).collect();
+        assert!(names.contains(&"agent:observatory"));
+        assert!(names.contains(&"agent:memory_graph"));
+
+        // All agent spans have correct parent
+        for span in &trace.agent_spans {
+            assert_eq!(span.parent_span_id, Some(trace.repo_span.span_id.clone()));
+        }
     }
 }

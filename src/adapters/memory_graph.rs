@@ -578,6 +578,66 @@ impl ConsumedGraphContext {
     }
 }
 
+// ============================================================================
+// FEU Extension Trait
+// ============================================================================
+
+use crate::adapters::observatory::SpanStatus;
+use crate::telemetry::tracing_ext::{FeuSpanCollector, SpanArtifact};
+
+/// Extension trait for FEU-aware memory graph operations.
+/// Wraps MemoryGraphConsumer methods with span lifecycle management.
+#[async_trait]
+pub trait FeuMemoryGraphConsumer: MemoryGraphConsumer {
+    /// Consume agent lineage with FEU span tracking.
+    async fn consume_agent_lineage_traced(
+        &self,
+        agent_id: &str,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<Option<ConsumedAgentLineage>, AdapterError>;
+}
+
+#[async_trait]
+impl FeuMemoryGraphConsumer for MemoryGraphAdapter {
+    async fn consume_agent_lineage_traced(
+        &self,
+        agent_id: &str,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<Option<ConsumedAgentLineage>, AdapterError> {
+        let span_id = collector.begin_agent_span("memory_graph")
+            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| AdapterError::UpstreamError(e.to_string()))?;
+
+        match self.consume_agent_lineage(agent_id).await {
+            Ok(Some(lineage)) => {
+                let artifact = SpanArtifact {
+                    kind: "agent_lineage".to_string(),
+                    payload: serde_json::to_value(&lineage).unwrap_or(serde_json::Value::Null),
+                    created_at: chrono::Utc::now().timestamp_millis() as u64,
+                };
+                let _ = collector.attach_artifact(&span_id, artifact);
+
+                // Map AgentStatus to SpanStatus
+                let span_status = match lineage.status {
+                    AgentStatus::Completed => SpanStatus::Ok,
+                    AgentStatus::Failed => SpanStatus::Failed,
+                    AgentStatus::Cancelled => SpanStatus::Error,
+                    _ => SpanStatus::Unset,
+                };
+                let _ = collector.end_agent_span(&span_id, span_status);
+                Ok(Some(lineage))
+            }
+            Ok(None) => {
+                let _ = collector.end_agent_span(&span_id, SpanStatus::Ok);
+                Ok(None)
+            }
+            Err(e) => {
+                let _ = collector.fail_agent_span(&span_id, &e.to_string());
+                Err(e)
+            }
+        }
+    }
+}
+
 impl ConsumedAgentLineage {
     /// Check if agent completed successfully
     pub fn is_successful(&self) -> bool {
@@ -740,5 +800,38 @@ mod tests {
     fn test_session_state_default() {
         let state = SessionState::default();
         assert_eq!(state, SessionState::Active);
+    }
+
+    #[test]
+    fn test_lineage_as_artifact_payload() {
+        let lineage = ConsumedAgentLineage {
+            agent_id: "agent-feu".to_string(),
+            name: "FEU Agent".to_string(),
+            config: AgentConfig::default(),
+            status: AgentStatus::Completed,
+            actions: vec![],
+            tool_invocations: vec![],
+            metrics: AgentMetrics::default(),
+        };
+
+        let artifact = SpanArtifact {
+            kind: "agent_lineage".to_string(),
+            payload: serde_json::to_value(&lineage).unwrap(),
+            created_at: 0,
+        };
+
+        assert_eq!(artifact.kind, "agent_lineage");
+        assert!(artifact.payload.get("agent_id").is_some());
+    }
+
+    #[test]
+    fn test_feu_memory_graph_collector_integration() {
+        let mut collector = FeuSpanCollector::new(None);
+        let span_id = collector.begin_agent_span("memory_graph").unwrap();
+        collector.end_agent_span(&span_id, SpanStatus::Ok).unwrap();
+
+        let trace = collector.finalize().unwrap();
+        assert_eq!(trace.agent_spans.len(), 1);
+        assert_eq!(trace.agent_spans[0].name, "agent:memory_graph");
     }
 }

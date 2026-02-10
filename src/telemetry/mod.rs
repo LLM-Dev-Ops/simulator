@@ -8,10 +8,15 @@
 //! - Log-trace correlation
 
 mod metrics;
-mod tracing_ext;
+pub mod tracing_ext;
 
 pub use metrics::*;
 pub use tracing_ext::*;
+
+// FEU (Foundational Execution Unit) re-exports
+pub use tracing_ext::{
+    FeuSpanCollector, FeuValidationError, ExecutionTrace, SpanArtifact, FEU_ROOT_PARENT,
+};
 
 use std::time::Duration;
 use tracing_subscriber::{layer::SubscriberExt, util::SubscriberInitExt, EnvFilter};

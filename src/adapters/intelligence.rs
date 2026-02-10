@@ -343,7 +343,7 @@ impl IntelligenceAdapter {
         let cache = if config.cache_enabled {
             Some(Cache::new(CacheConfig {
                 max_entries: 1000,
-                ttl_secs: config.cache_ttl_secs,
+                default_ttl: std::time::Duration::from_secs(config.cache_ttl_secs),
                 ..Default::default()
             }))
         } else {
@@ -351,14 +351,12 @@ impl IntelligenceAdapter {
         };
 
         let retry_policy = if config.retry_enabled {
-            RetryPolicy::new(RetryConfig {
-                max_retries: config.max_retries,
-                initial_delay_ms: 100,
-                max_delay_ms: 2000,
-                ..Default::default()
-            })
+            let mut retry_config = RetryConfig::default();
+            retry_config.max_retries = config.max_retries;
+            retry_config.base_delay_ms = 100;
+            RetryPolicy::from_config(&retry_config)
         } else {
-            RetryPolicy::no_retry()
+            RetryPolicy::new()
         };
 
         Ok(Self {
@@ -423,10 +421,14 @@ impl IntelligenceConsumer for IntelligenceAdapter {
 
         // Query RuvVector for reasoning support (REQUIRED)
         let query_request = crate::adapters::ruvvector::QueryRequest {
-            query: context.input.clone(),
-            top_k: Some(5),
+            query: Some(context.input.clone()),
+            vector: None,
+            top_k: 5,
+            threshold: None,
+            namespace: None,
             filter: Some(serde_json::json!({ "domain": context.domain })),
-            include_metadata: Some(true),
+            include_vectors: false,
+            include_metadata: true,
         };
 
         let query_result = self.ruvvector.query(&query_request).await?;
@@ -434,7 +436,7 @@ impl IntelligenceConsumer for IntelligenceAdapter {
         // Build hypothesis from RuvVector results
         let evidence: Vec<String> = query_result.results
             .iter()
-            .map(|r| r.content.clone())
+            .filter_map(|r| r.content.clone())
             .collect();
 
         let confidence = query_result.results
@@ -499,13 +501,20 @@ impl IntelligenceConsumer for IntelligenceAdapter {
         // Use RuvVector simulate endpoint (REQUIRED)
         let simulate_request = crate::adapters::ruvvector::SimulateRequest {
             model: "simulation".to_string(),
-            messages: vec![crate::adapters::ruvvector::SimulateMessage {
-                role: "user".to_string(),
-                content: serde_json::to_string(&scenario.parameters)
-                    .unwrap_or_default(),
-            }],
-            max_tokens: Some(self.config.max_tokens),
-            temperature: Some(0.7),
+            input: crate::adapters::ruvvector::SimulateInput::Messages(vec![
+                crate::adapters::ruvvector::SimulateMessage {
+                    role: "user".to_string(),
+                    content: serde_json::to_string(&scenario.parameters)
+                        .unwrap_or_default(),
+                },
+            ]),
+            parameters: Some(crate::adapters::ruvvector::SimulateParameters {
+                max_tokens: Some(self.config.max_tokens),
+                temperature: Some(0.7),
+                ..Default::default()
+            }),
+            context: None,
+            request_id: None,
         };
 
         let simulate_result = self.ruvvector.simulate(&simulate_request).await?;
@@ -569,10 +578,14 @@ impl IntelligenceConsumer for IntelligenceAdapter {
 
         // Query RuvVector for confidence factors (REQUIRED)
         let query_request = crate::adapters::ruvvector::QueryRequest {
-            query: assessment.subject.clone(),
-            top_k: Some(3),
+            query: Some(assessment.subject.clone()),
+            vector: None,
+            top_k: 3,
+            threshold: None,
+            namespace: None,
             filter: None,
-            include_metadata: Some(true),
+            include_vectors: false,
+            include_metadata: true,
         };
 
         let query_result = self.ruvvector.query(&query_request).await?;
@@ -635,8 +648,122 @@ impl IntelligenceConsumer for IntelligenceAdapter {
     async fn health_check(&self) -> Result<bool, IntelligenceError> {
         // Intelligence layer health depends on RuvVector (REQUIRED)
         match self.ruvvector.health_check().await {
-            Ok(healthy) => Ok(healthy),
+            Ok(resp) => Ok(resp.status == "ok" || resp.status == "healthy"),
             Err(e) => Err(IntelligenceError::RuvVectorUnavailable(e.to_string())),
+        }
+    }
+}
+
+// ============================================================================
+// FEU Extension Trait
+// ============================================================================
+
+use crate::adapters::observatory::SpanStatus;
+use crate::telemetry::tracing_ext::{FeuSpanCollector, SpanArtifact};
+
+/// Extension trait for FEU-aware intelligence operations.
+/// Wraps IntelligenceConsumer methods with span lifecycle management.
+#[async_trait]
+pub trait FeuIntelligenceConsumer: IntelligenceConsumer {
+    /// Emit hypothesis with FEU span tracking.
+    async fn emit_hypothesis_traced(
+        &self,
+        context: &ReasoningContext,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<DecisionSignal, IntelligenceError>;
+
+    /// Emit simulation outcome with FEU span tracking.
+    async fn emit_simulation_outcome_traced(
+        &self,
+        scenario: &SimulationScenario,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<DecisionSignal, IntelligenceError>;
+
+    /// Emit confidence delta with FEU span tracking.
+    async fn emit_confidence_delta_traced(
+        &self,
+        assessment: &ConfidenceAssessment,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<DecisionSignal, IntelligenceError>;
+}
+
+#[async_trait]
+impl FeuIntelligenceConsumer for IntelligenceAdapter {
+    async fn emit_hypothesis_traced(
+        &self,
+        context: &ReasoningContext,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<DecisionSignal, IntelligenceError> {
+        let span_id = collector.begin_agent_span("intelligence")
+            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| IntelligenceError::Internal(e.to_string()))?;
+
+        match self.emit_hypothesis(context).await {
+            Ok(signal) => {
+                let artifact = SpanArtifact {
+                    kind: "decision_signal".to_string(),
+                    payload: serde_json::to_value(&signal).unwrap_or(serde_json::Value::Null),
+                    created_at: signal.timestamp_ms,
+                };
+                let _ = collector.attach_artifact(&span_id, artifact);
+                let _ = collector.end_agent_span(&span_id, SpanStatus::Ok);
+                Ok(signal)
+            }
+            Err(e) => {
+                let _ = collector.fail_agent_span(&span_id, &e.to_string());
+                Err(e)
+            }
+        }
+    }
+
+    async fn emit_simulation_outcome_traced(
+        &self,
+        scenario: &SimulationScenario,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<DecisionSignal, IntelligenceError> {
+        let span_id = collector.begin_agent_span("intelligence")
+            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| IntelligenceError::Internal(e.to_string()))?;
+
+        match self.emit_simulation_outcome(scenario).await {
+            Ok(signal) => {
+                let artifact = SpanArtifact {
+                    kind: "decision_signal".to_string(),
+                    payload: serde_json::to_value(&signal).unwrap_or(serde_json::Value::Null),
+                    created_at: signal.timestamp_ms,
+                };
+                let _ = collector.attach_artifact(&span_id, artifact);
+                let _ = collector.end_agent_span(&span_id, SpanStatus::Ok);
+                Ok(signal)
+            }
+            Err(e) => {
+                let _ = collector.fail_agent_span(&span_id, &e.to_string());
+                Err(e)
+            }
+        }
+    }
+
+    async fn emit_confidence_delta_traced(
+        &self,
+        assessment: &ConfidenceAssessment,
+        collector: &mut FeuSpanCollector,
+    ) -> Result<DecisionSignal, IntelligenceError> {
+        let span_id = collector.begin_agent_span("intelligence")
+            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| IntelligenceError::Internal(e.to_string()))?;
+
+        match self.emit_confidence_delta(assessment).await {
+            Ok(signal) => {
+                let artifact = SpanArtifact {
+                    kind: "decision_signal".to_string(),
+                    payload: serde_json::to_value(&signal).unwrap_or(serde_json::Value::Null),
+                    created_at: signal.timestamp_ms,
+                };
+                let _ = collector.attach_artifact(&span_id, artifact);
+                let _ = collector.end_agent_span(&span_id, SpanStatus::Ok);
+                Ok(signal)
+            }
+            Err(e) => {
+                let _ = collector.fail_agent_span(&span_id, &e.to_string());
+                Err(e)
+            }
         }
     }
 }
@@ -706,5 +833,53 @@ mod tests {
 
         let json = serde_json::to_string(&payload).unwrap();
         assert!(json.contains("confidence_delta"));
+    }
+
+    #[test]
+    fn test_signal_as_artifact_payload() {
+        let signal = DecisionSignal {
+            signal_id: "sig_test".to_string(),
+            signal_type: SignalType::HypothesisSignal,
+            timestamp_ms: 1234567890,
+            source_agent: "intelligence_layer_2".to_string(),
+            correlation_id: "corr-1".to_string(),
+            payload: SignalPayload::Hypothesis(HypothesisPayload {
+                hypothesis: "test hypothesis".to_string(),
+                confidence: 0.8,
+                evidence: vec!["ev1".to_string()],
+                alternatives: vec![],
+                reasoning: "test reasoning".to_string(),
+            }),
+            latency_ms: 100,
+            tokens_used: 50,
+        };
+
+        let artifact = SpanArtifact {
+            kind: "decision_signal".to_string(),
+            payload: serde_json::to_value(&signal).unwrap(),
+            created_at: signal.timestamp_ms,
+        };
+
+        assert_eq!(artifact.kind, "decision_signal");
+        assert!(artifact.payload.get("signal_id").is_some());
+    }
+
+    #[test]
+    fn test_feu_intelligence_collector_integration() {
+        let mut collector = FeuSpanCollector::new(None);
+        let span_id = collector.begin_agent_span("intelligence").unwrap();
+
+        let artifact = SpanArtifact {
+            kind: "decision_signal".to_string(),
+            payload: serde_json::json!({"signal_type": "hypothesis_signal"}),
+            created_at: 0,
+        };
+        collector.attach_artifact(&span_id, artifact).unwrap();
+        collector.end_agent_span(&span_id, SpanStatus::Ok).unwrap();
+
+        let trace = collector.finalize().unwrap();
+        assert_eq!(trace.agent_spans.len(), 1);
+        assert_eq!(trace.agent_spans[0].name, "agent:intelligence");
+        assert!(trace.artifacts.contains_key(&span_id));
     }
 }

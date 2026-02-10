@@ -22,6 +22,8 @@ use tracing::{debug, info, warn};
 use uuid::Uuid;
 
 use crate::adapters::ruvvector::{OptionalRuvVectorAdapter, SimulateRequest, SimulateInput, SimulateMessage, SimulateParameters};
+use crate::adapters::observatory::SpanStatus;
+use crate::telemetry::tracing_ext::{FeuSpanCollector, ExecutionTrace, SpanArtifact};
 use crate::config::{SimulatorConfig, ModelConfig};
 use crate::error::{SimulationError, SimulatorResult};
 use crate::latency::{LatencySimulator, LatencySchedule};
@@ -387,6 +389,123 @@ impl SimulationEngine {
         self.mock_activation_count.load(Ordering::Relaxed)
     }
 
+    // ========================================================================
+    // FEU-traced execution entry points
+    // ========================================================================
+
+    /// Execute chat completion with full FEU execution tracing.
+    /// Returns both the response and the execution trace.
+    pub async fn chat_completion_traced(
+        &self,
+        request: &ChatCompletionRequest,
+    ) -> SimulatorResult<(ChatCompletionResponse, ExecutionTrace)> {
+        let mut collector = FeuSpanCollector::new(None);
+
+        let engine_span_id = collector.begin_agent_span("engine")
+            .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
+
+        let result = self.chat_completion(request).await;
+
+        match &result {
+            Ok(response) => {
+                let artifact = SpanArtifact {
+                    kind: "chat_completion_response".to_string(),
+                    payload: serde_json::json!({
+                        "id": response.id,
+                        "model": response.model,
+                        "choices_count": response.choices.len(),
+                    }),
+                    created_at: chrono::Utc::now().timestamp_millis() as u64,
+                };
+                let _ = collector.attach_artifact(&engine_span_id, artifact);
+                let _ = collector.end_agent_span(&engine_span_id, SpanStatus::Ok);
+            }
+            Err(e) => {
+                let _ = collector.fail_agent_span(&engine_span_id, &e.to_string());
+            }
+        }
+
+        let trace = collector.finalize()
+            .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
+
+        result.map(|response| (response, trace))
+    }
+
+    /// Execute embeddings with full FEU execution tracing.
+    /// Returns both the response and the execution trace.
+    pub async fn embeddings_traced(
+        &self,
+        request: &EmbeddingsRequest,
+    ) -> SimulatorResult<(EmbeddingsResponse, ExecutionTrace)> {
+        let mut collector = FeuSpanCollector::new(None);
+
+        let engine_span_id = collector.begin_agent_span("engine")
+            .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
+
+        let result = self.embeddings(request).await;
+
+        match &result {
+            Ok(response) => {
+                let artifact = SpanArtifact {
+                    kind: "embeddings_response".to_string(),
+                    payload: serde_json::json!({
+                        "model": response.model,
+                        "embedding_count": response.data.len(),
+                    }),
+                    created_at: chrono::Utc::now().timestamp_millis() as u64,
+                };
+                let _ = collector.attach_artifact(&engine_span_id, artifact);
+                let _ = collector.end_agent_span(&engine_span_id, SpanStatus::Ok);
+            }
+            Err(e) => {
+                let _ = collector.fail_agent_span(&engine_span_id, &e.to_string());
+            }
+        }
+
+        let trace = collector.finalize()
+            .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
+
+        result.map(|response| (response, trace))
+    }
+
+    /// Execute streaming chat completion with full FEU execution tracing.
+    /// Returns both the streaming response and the execution trace.
+    pub async fn chat_completion_stream_traced(
+        &self,
+        request: &ChatCompletionRequest,
+    ) -> SimulatorResult<(StreamingResponse, ExecutionTrace)> {
+        let mut collector = FeuSpanCollector::new(None);
+
+        let engine_span_id = collector.begin_agent_span("engine")
+            .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
+
+        let result = self.chat_completion_stream(request).await;
+
+        match &result {
+            Ok(response) => {
+                let artifact = SpanArtifact {
+                    kind: "streaming_response".to_string(),
+                    payload: serde_json::json!({
+                        "id": response.id,
+                        "model": response.model,
+                        "token_count": response.tokens.len(),
+                    }),
+                    created_at: chrono::Utc::now().timestamp_millis() as u64,
+                };
+                let _ = collector.attach_artifact(&engine_span_id, artifact);
+                let _ = collector.end_agent_span(&engine_span_id, SpanStatus::Ok);
+            }
+            Err(e) => {
+                let _ = collector.fail_agent_span(&engine_span_id, &e.to_string());
+            }
+        }
+
+        let trace = collector.finalize()
+            .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
+
+        result.map(|response| (response, trace))
+    }
+
     /// Generate content using RuvVector service with fallback to local generator
     ///
     /// This method attempts to use the RuvVector service if configured.
@@ -665,6 +784,59 @@ mod tests {
         let stats = engine.stats();
         assert_eq!(stats.total_requests, 1);
         assert!(stats.total_input_tokens > 0);
+    }
+
+    #[tokio::test]
+    async fn test_chat_completion_traced() {
+        let engine = test_engine();
+        let request = ChatCompletionRequest::new(
+            "gpt-4",
+            vec![Message::user("Hello!")],
+        );
+
+        let (response, trace) = engine.chat_completion_traced(&request).await.unwrap();
+        assert!(!response.id.is_empty());
+        assert_eq!(trace.status, SpanStatus::Ok);
+        assert_eq!(trace.agent_spans.len(), 1);
+        assert_eq!(trace.agent_spans[0].name, "agent:engine");
+        assert_eq!(
+            trace.agent_spans[0].parent_span_id,
+            Some(trace.repo_span.span_id.clone())
+        );
+        // Should have response artifact
+        let artifacts = trace.artifacts.get(&trace.agent_spans[0].span_id);
+        assert!(artifacts.is_some());
+        assert_eq!(artifacts.unwrap()[0].kind, "chat_completion_response");
+    }
+
+    #[tokio::test]
+    async fn test_chat_completion_traced_failure() {
+        let engine = test_engine();
+        let request = ChatCompletionRequest::new(
+            "nonexistent-model",
+            vec![Message::user("Hello!")],
+        );
+
+        let result = engine.chat_completion_traced(&request).await;
+        assert!(result.is_err());
+    }
+
+    #[tokio::test]
+    async fn test_embeddings_traced() {
+        let engine = SimulationEngine::default_config();
+        let request = EmbeddingsRequest {
+            model: "text-embedding-ada-002".to_string(),
+            input: EmbeddingInput::Single("Hello world".to_string()),
+            encoding_format: None,
+            dimensions: None,
+            user: None,
+        };
+
+        let (response, trace) = engine.embeddings_traced(&request).await.unwrap();
+        assert_eq!(response.data.len(), 1);
+        assert_eq!(trace.status, SpanStatus::Ok);
+        assert_eq!(trace.agent_spans.len(), 1);
+        assert_eq!(trace.agent_spans[0].name, "agent:engine");
     }
 
     #[tokio::test]

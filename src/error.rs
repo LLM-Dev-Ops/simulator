@@ -76,6 +76,10 @@ pub enum SimulationError {
     // Streaming errors
     #[error("Stream error: {0}")]
     StreamError(String),
+
+    // FEU tracing errors
+    #[error("FEU validation error: {0}")]
+    FeuValidation(String),
 }
 
 /// Types of injected errors for chaos engineering
@@ -166,6 +170,7 @@ impl SimulationError {
             Self::SessionNotFound(_) => StatusCode::NOT_FOUND,
             Self::ContextLengthExceeded { .. } => StatusCode::BAD_REQUEST,
             Self::StreamError(_) => StatusCode::INTERNAL_SERVER_ERROR,
+            Self::FeuValidation(_) => StatusCode::INTERNAL_SERVER_ERROR,
         }
     }
 
@@ -189,6 +194,7 @@ impl SimulationError {
             Self::SessionNotFound(_) => "not_found_error",
             Self::ContextLengthExceeded { .. } => "context_length_exceeded",
             Self::StreamError(_) => "stream_error",
+            Self::FeuValidation(_) => "feu_validation_error",
         }
     }
 
@@ -248,6 +254,12 @@ impl From<serde_json::Error> for SimulationError {
             message: err.to_string(),
             param: None,
         }
+    }
+}
+
+impl From<crate::telemetry::FeuValidationError> for SimulationError {
+    fn from(err: crate::telemetry::FeuValidationError) -> Self {
+        Self::FeuValidation(err.to_string())
     }
 }
 
