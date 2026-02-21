@@ -1,0 +1,28 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://us-central1-agentics-dev.cloudfunctions.net/simulator-agents/schemas/scenario-request",
+  "title": "Scenario Generator Agent Request",
+  "description": "Request contract for the Scenario Generator Agent. Maps to SimulationScenario in intelligence.rs.",
+  "type": "object",
+  "required": ["scenario_id", "parameters"],
+  "properties": {
+    "scenario_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Unique identifier for the simulation scenario"
+    },
+    "parameters": {
+      "type": "object",
+      "description": "Parameters for the simulation execution"
+    },
+    "expected_outcomes": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 50,
+      "default": [],
+      "description": "Expected outcomes to evaluate against"
+    }
+  },
+  "additionalProperties": false
+}

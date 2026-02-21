@@ -1,0 +1,37 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://us-central1-agentics-dev.cloudfunctions.net/simulator-agents/schemas/what-if-request",
+  "title": "What-If Simulation Agent Request",
+  "description": "Request contract for the What-If Simulation Agent. Maps to ReasoningContext in intelligence.rs.",
+  "type": "object",
+  "required": ["input", "domain"],
+  "properties": {
+    "input": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 10000,
+      "description": "Input data for reasoning analysis"
+    },
+    "domain": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "description": "Domain context for the what-if analysis"
+    },
+    "constraints": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 50,
+      "default": [],
+      "description": "Constraints to consider during analysis"
+    },
+    "evidence": {
+      "type": "array",
+      "items": { "type": "string" },
+      "maxItems": 100,
+      "default": [],
+      "description": "Historical evidence to support reasoning"
+    }
+  },
+  "additionalProperties": false
+}

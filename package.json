@@ -1,5 +1,19 @@
 {
+  "name": "simulator-agents",
+  "version": "1.0.0",
+  "description": "Cloud Function hosting What-If Simulation and Scenario Generator agents",
+  "main": "index.js",
+  "engines": {
+    "node": ">=20.0.0"
+  },
+  "scripts": {
+    "start": "node -e \"const app = require('./index').handler; const port = process.env.PORT || 8080; app.listen(port, () => console.log('Listening on', port));\"",
+    "test": "node test.js"
+  },
   "dependencies": {
-    "claude-flow": "^3.0.0-alpha.179"
+    "ajv": "^8.17.1",
+    "claude-flow": "^3.0.0-alpha.179",
+    "cors": "^2.8.5",
+    "express": "^4.21.2"
   }
 }

@@ -1,0 +1,68 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://us-central1-agentics-dev.cloudfunctions.net/simulator-agents/schemas/scenario-response",
+  "title": "Scenario Generator Agent Response",
+  "description": "Response contract for the Scenario Generator Agent. Wraps a DecisionSignal with SimulationOutcomePayload.",
+  "type": "object",
+  "required": ["signal", "execution_metadata", "layers_executed"],
+  "properties": {
+    "signal": {
+      "type": "object",
+      "required": ["signal_id", "signal_type", "timestamp_ms", "source_agent", "correlation_id", "payload", "latency_ms", "tokens_used"],
+      "properties": {
+        "signal_id": { "type": "string" },
+        "signal_type": { "type": "string", "const": "simulation_outcome_signal" },
+        "timestamp_ms": { "type": "integer" },
+        "source_agent": { "type": "string", "const": "scenario" },
+        "correlation_id": { "type": "string" },
+        "payload": {
+          "type": "object",
+          "required": ["type", "data"],
+          "properties": {
+            "type": { "type": "string", "const": "SimulationOutcome" },
+            "data": {
+              "type": "object",
+              "required": ["scenario_id", "parameters", "outcome", "success_probability", "risk_factors", "recommendations"],
+              "properties": {
+                "scenario_id": { "type": "string" },
+                "parameters": { "type": "object" },
+                "outcome": { "type": "string" },
+                "success_probability": { "type": "number", "minimum": 0, "maximum": 1 },
+                "risk_factors": { "type": "array", "items": { "type": "string" } },
+                "recommendations": { "type": "array", "items": { "type": "string" } }
+              }
+            }
+          }
+        },
+        "latency_ms": { "type": "integer", "minimum": 0 },
+        "tokens_used": { "type": "integer", "minimum": 0, "maximum": 2500 }
+      }
+    },
+    "execution_metadata": { "$ref": "#/definitions/execution_metadata" },
+    "layers_executed": { "$ref": "#/definitions/layers_executed" }
+  },
+  "definitions": {
+    "execution_metadata": {
+      "type": "object",
+      "required": ["trace_id", "timestamp", "service", "execution_id"],
+      "properties": {
+        "trace_id": { "type": "string" },
+        "timestamp": { "type": "string", "format": "date-time" },
+        "service": { "type": "string", "const": "simulator-agents" },
+        "execution_id": { "type": "string" }
+      }
+    },
+    "layers_executed": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["layer", "status"],
+        "properties": {
+          "layer": { "type": "string" },
+          "status": { "type": "string", "enum": ["completed", "failed"] },
+          "duration_ms": { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}

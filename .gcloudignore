@@ -1,0 +1,34 @@
+# Rust source and build artifacts
+src/
+target/
+Cargo.toml
+Cargo.lock
+rust-toolchain.toml
+
+# Docker
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Deployment configs not needed in function
+deploy/
+.github/
+
+# Development
+.git/
+.gitignore
+*.md
+simulator.example.yaml
+simulator.local.yaml
+benches/
+tests/
+
+# Node dev artifacts
+node_modules/
+test.js
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
