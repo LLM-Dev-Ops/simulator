@@ -346,17 +346,12 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Validate Kubernetes manifests
-        run: |
-          # Parse manifests locally; kubeval below performs schema validation.
-          kubectl create --dry-run=client --validate=false -f deploy/kubernetes/
-
       - name: Install kubeval
         run: |
-          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          set -euo pipefail
+          wget https://github.com/instrumenta/kubeval/releases/download/v0.16.1/kubeval-linux-amd64.tar.gz
+          wget https://github.com/instrumenta/kubeval/releases/download/v0.16.1/checksums.txt
+          grep 'kubeval-linux-amd64.tar.gz$' checksums.txt | sha256sum -c -
           tar xf kubeval-linux-amd64.tar.gz
           sudo mv kubeval /usr/local/bin
 

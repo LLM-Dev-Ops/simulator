@@ -61,8 +61,8 @@ its modules. The remaining production tree passes `npm ls --all --omit=dev`.
   Rust 1.88 toolchain while preserving Rust 1.83 as the project MSRV; pins
   `cargo-tarpaulin@0.31.3` and `protoc@25.1`; updates
   cache/artifact actions to v4; prevents matrix fail-fast cancellation; adds the
-  missing Node test/audit job; and keeps local kubectl parsing followed by kubeval
-  schema validation.
+  missing Node test/audit job; and pins checksum-verified `kubeval@0.16.1` for
+  offline Kubernetes schema validation.
 - Applies Rust 1.83 formatting and machine-applicable Clippy fixes. One real
   serialization defect was exposed and fixed by emitting `SignalPayload` variant
   tags in snake case, matching the existing contract test.
