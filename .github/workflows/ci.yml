@@ -352,7 +352,7 @@ jobs:
       - name: Validate Kubernetes manifests
         run: |
           # Parse manifests locally; kubeval below performs schema validation.
-          kubectl apply --dry-run=client --validate=false -f deploy/kubernetes/
+          kubectl create --dry-run=client --validate=false -f deploy/kubernetes/
 
       - name: Install kubeval
         run: |
