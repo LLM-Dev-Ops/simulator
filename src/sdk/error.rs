@@ -36,9 +36,7 @@ pub enum SdkError {
     Authentication(String),
 
     /// Rate limit exceeded
-    RateLimit {
-        retry_after: Option<u64>,
-    },
+    RateLimit { retry_after: Option<u64> },
 
     /// Model not found
     ModelNotFound(String),
@@ -60,7 +58,9 @@ impl fmt::Display for SdkError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             SdkError::Request(e) => write!(f, "Request error: {}", e),
-            SdkError::Response { status, message, .. } => {
+            SdkError::Response {
+                status, message, ..
+            } => {
                 write!(f, "Response error ({}): {}", status, message)
             }
             SdkError::Json(e) => write!(f, "JSON error: {}", e),
@@ -79,8 +79,15 @@ impl fmt::Display for SdkError {
             SdkError::ModelNotFound(model) => write!(f, "Model not found: {}", model),
             SdkError::InvalidRequest(msg) => write!(f, "Invalid request: {}", msg),
             SdkError::Stream(msg) => write!(f, "Stream error: {}", msg),
-            SdkError::RetryExhausted { attempts, last_error } => {
-                write!(f, "Retry exhausted after {} attempts: {}", attempts, last_error)
+            SdkError::RetryExhausted {
+                attempts,
+                last_error,
+            } => {
+                write!(
+                    f,
+                    "Retry exhausted after {} attempts: {}",
+                    attempts, last_error
+                )
             }
         }
     }
@@ -144,9 +151,7 @@ impl SdkError {
     /// Get the retry-after duration if available
     pub fn retry_after(&self) -> Option<std::time::Duration> {
         match self {
-            SdkError::RateLimit { retry_after } => {
-                retry_after.map(std::time::Duration::from_secs)
-            }
+            SdkError::RateLimit { retry_after } => retry_after.map(std::time::Duration::from_secs),
             _ => None,
         }
     }
@@ -165,7 +170,11 @@ impl SdkError {
                 if let Some(model) = body["error"]["param"].as_str() {
                     SdkError::ModelNotFound(model.to_string())
                 } else {
-                    SdkError::Response { status, message, body: Some(body) }
+                    SdkError::Response {
+                        status,
+                        message,
+                        body: Some(body),
+                    }
                 }
             }
             429 => {
@@ -174,7 +183,11 @@ impl SdkError {
                     .or_else(|| body["retry_after"].as_u64());
                 SdkError::RateLimit { retry_after }
             }
-            _ => SdkError::Response { status, message, body: Some(body) }
+            _ => SdkError::Response {
+                status,
+                message,
+                body: Some(body),
+            },
         }
     }
 }
@@ -195,8 +208,16 @@ mod tests {
     #[test]
     fn test_retryable() {
         assert!(SdkError::Timeout.is_retryable());
-        assert!(SdkError::RateLimit { retry_after: Some(5) }.is_retryable());
-        assert!(SdkError::Response { status: 503, message: "Unavailable".to_string(), body: None }.is_retryable());
+        assert!(SdkError::RateLimit {
+            retry_after: Some(5)
+        }
+        .is_retryable());
+        assert!(SdkError::Response {
+            status: 503,
+            message: "Unavailable".to_string(),
+            body: None
+        }
+        .is_retryable());
         assert!(!SdkError::Authentication("bad key".to_string()).is_retryable());
     }
 
@@ -210,6 +231,11 @@ mod tests {
         });
 
         let err = SdkError::from_response(429, body);
-        assert!(matches!(err, SdkError::RateLimit { retry_after: Some(60) }));
+        assert!(matches!(
+            err,
+            SdkError::RateLimit {
+                retry_after: Some(60)
+            }
+        ));
     }
 }

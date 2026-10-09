@@ -1,9 +1,9 @@
 //! Prometheus metrics implementation
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
 use parking_lot::RwLock;
 use std::collections::HashMap;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::{Duration, Instant};
 
 /// Global metrics registry
 pub struct MetricsRegistry {
@@ -29,7 +29,8 @@ impl MetricsRegistry {
         } else {
             drop(counters);
             let mut counters = self.counters.write();
-            counters.entry(name.to_string())
+            counters
+                .entry(name.to_string())
                 .or_insert_with(|| AtomicU64::new(0))
                 .fetch_add(value, Ordering::Relaxed);
         }
@@ -38,7 +39,8 @@ impl MetricsRegistry {
     /// Set a gauge value
     pub fn gauge_set(&self, name: &str, value: u64) {
         let mut gauges = self.gauges.write();
-        gauges.entry(name.to_string())
+        gauges
+            .entry(name.to_string())
             .or_insert_with(|| AtomicU64::new(0))
             .store(value, Ordering::Relaxed);
     }
@@ -51,8 +53,9 @@ impl MetricsRegistry {
         } else {
             drop(histograms);
             let mut histograms = self.histograms.write();
-            histograms.entry(name.to_string())
-                .or_insert_with(Histogram::new)
+            histograms
+                .entry(name.to_string())
+                .or_default()
                 .observe(value);
         }
     }
@@ -64,19 +67,13 @@ impl MetricsRegistry {
         // Export counters
         for (name, counter) in self.counters.read().iter() {
             let value = counter.load(Ordering::Relaxed);
-            output.push_str(&format!(
-                "# TYPE {} counter\n{} {}\n",
-                name, name, value
-            ));
+            output.push_str(&format!("# TYPE {} counter\n{} {}\n", name, name, value));
         }
 
         // Export gauges
         for (name, gauge) in self.gauges.read().iter() {
             let value = gauge.load(Ordering::Relaxed);
-            output.push_str(&format!(
-                "# TYPE {} gauge\n{} {}\n",
-                name, name, value
-            ));
+            output.push_str(&format!("# TYPE {} gauge\n{} {}\n", name, name, value));
         }
 
         // Export histograms
@@ -87,7 +84,9 @@ impl MetricsRegistry {
             output.push_str(&format!("{}_sum {}\n", name, stats.sum));
 
             // Buckets
-            let buckets = [0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0];
+            let buckets = [
+                0.005, 0.01, 0.025, 0.05, 0.1, 0.25, 0.5, 1.0, 2.5, 5.0, 10.0,
+            ];
             for bucket in buckets {
                 let count = hist.count_below(bucket);
                 output.push_str(&format!("{}_bucket{{le=\"{}\"}} {}\n", name, bucket, count));
@@ -148,7 +147,8 @@ impl Histogram {
     }
 
     pub fn count_below(&self, threshold: f64) -> u64 {
-        self.values.read()
+        self.values
+            .read()
             .iter()
             .filter(|&&v| v <= threshold)
             .count() as u64
@@ -271,8 +271,10 @@ impl SimulatorMetrics {
         self.registry.counter_inc(metric_names::REQUESTS_TOTAL, 1);
 
         let duration_key = format!("{}{{model=\"{}\"}}", metric_names::REQUESTS_DURATION, model);
-        self.registry.histogram_observe(&duration_key, duration.as_secs_f64());
-        self.registry.histogram_observe(metric_names::REQUESTS_DURATION, duration.as_secs_f64());
+        self.registry
+            .histogram_observe(&duration_key, duration.as_secs_f64());
+        self.registry
+            .histogram_observe(metric_names::REQUESTS_DURATION, duration.as_secs_f64());
     }
 
     /// Record a request with full labels (provider, model, status)
@@ -285,67 +287,82 @@ impl SimulatorMetrics {
     ) {
         let key = format!(
             "{}{{provider=\"{}\",model=\"{}\",status=\"{}\"}}",
-            metric_names::REQUESTS_TOTAL, provider, model, status
+            metric_names::REQUESTS_TOTAL,
+            provider,
+            model,
+            status
         );
         self.registry.counter_inc(&key, 1);
         self.registry.counter_inc(metric_names::REQUESTS_TOTAL, 1);
 
         let duration_key = format!(
             "{}{{provider=\"{}\",model=\"{}\"}}",
-            metric_names::REQUESTS_DURATION, provider, model
+            metric_names::REQUESTS_DURATION,
+            provider,
+            model
         );
-        self.registry.histogram_observe(&duration_key, duration.as_secs_f64());
+        self.registry
+            .histogram_observe(&duration_key, duration.as_secs_f64());
     }
 
     /// Record token usage with labels
     pub fn record_tokens(&self, input: u32, output: u32) {
-        self.registry.counter_inc(metric_names::TOKENS_INPUT, input as u64);
-        self.registry.counter_inc(metric_names::TOKENS_OUTPUT, output as u64);
+        self.registry
+            .counter_inc(metric_names::TOKENS_INPUT, input as u64);
+        self.registry
+            .counter_inc(metric_names::TOKENS_OUTPUT, output as u64);
     }
 
     /// Record token usage with provider/model labels
     pub fn record_tokens_with_labels(&self, input: u32, output: u32, provider: &str, model: &str) {
         let input_key = format!(
             "{}{{provider=\"{}\",model=\"{}\"}}",
-            metric_names::TOKENS_INPUT, provider, model
+            metric_names::TOKENS_INPUT,
+            provider,
+            model
         );
         let output_key = format!(
             "{}{{provider=\"{}\",model=\"{}\"}}",
-            metric_names::TOKENS_OUTPUT, provider, model
+            metric_names::TOKENS_OUTPUT,
+            provider,
+            model
         );
 
         self.registry.counter_inc(&input_key, input as u64);
         self.registry.counter_inc(&output_key, output as u64);
-        self.registry.counter_inc(metric_names::TOKENS_INPUT, input as u64);
-        self.registry.counter_inc(metric_names::TOKENS_OUTPUT, output as u64);
+        self.registry
+            .counter_inc(metric_names::TOKENS_INPUT, input as u64);
+        self.registry
+            .counter_inc(metric_names::TOKENS_OUTPUT, output as u64);
     }
 
     /// Record an error with type label
     pub fn record_error(&self, error_type: &str) {
-        let key = format!("{}{{error_type=\"{}\"}}", metric_names::ERRORS_TOTAL, error_type);
+        let key = format!(
+            "{}{{error_type=\"{}\"}}",
+            metric_names::ERRORS_TOTAL,
+            error_type
+        );
         self.registry.counter_inc(&key, 1);
         self.registry.counter_inc(metric_names::ERRORS_TOTAL, 1);
     }
 
     /// Record time to first token
     pub fn record_ttft(&self, ttft: Duration) {
-        self.registry.histogram_observe(
-            metric_names::TTFT_SECONDS,
-            ttft.as_secs_f64(),
-        );
+        self.registry
+            .histogram_observe(metric_names::TTFT_SECONDS, ttft.as_secs_f64());
     }
 
     /// Record inter-token latency
     pub fn record_itl(&self, itl: Duration) {
-        self.registry.histogram_observe(
-            metric_names::ITL_SECONDS,
-            itl.as_secs_f64(),
-        );
+        self.registry
+            .histogram_observe(metric_names::ITL_SECONDS, itl.as_secs_f64());
     }
 
     /// Set the number of active requests
     pub fn set_active_requests(&self, count: u64) {
-        self.registry.gauge_set(metric_names::ACTIVE_REQUESTS, count);
+        self.registry
+            .gauge_set(metric_names::ACTIVE_REQUESTS, count);
     }
 
     /// Set queue depth (new)
@@ -355,14 +372,17 @@ impl SimulatorMetrics {
 
     /// Set queue capacity (new)
     pub fn set_queue_capacity(&self, capacity: u64) {
-        self.registry.gauge_set(metric_names::QUEUE_CAPACITY, capacity);
+        self.registry
+            .gauge_set(metric_names::QUEUE_CAPACITY, capacity);
     }
 
     /// Record cost in dollars (new)
     pub fn record_cost(&self, cost_dollars: f64, provider: &str, model: &str) {
         let key = format!(
             "{}{{provider=\"{}\",model=\"{}\"}}",
-            metric_names::COST_DOLLARS, provider, model
+            metric_names::COST_DOLLARS,
+            provider,
+            model
         );
         // Store as micro-dollars to avoid floating point issues
         let micro_dollars = (cost_dollars * 1_000_000.0) as u64;

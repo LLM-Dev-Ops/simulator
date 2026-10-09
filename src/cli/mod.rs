@@ -28,7 +28,12 @@ pub struct Cli {
     pub config: Option<PathBuf>,
 
     /// Global log level (trace, debug, info, warn, error)
-    #[arg(long, global = true, env = "LLM_SIMULATOR_LOG_LEVEL", default_value = "info")]
+    #[arg(
+        long,
+        global = true,
+        env = "LLM_SIMULATOR_LOG_LEVEL",
+        default_value = "info"
+    )]
     pub log_level: String,
 
     /// Enable JSON log output

@@ -8,8 +8,10 @@ use std::time::Duration;
 use reqwest::header::{HeaderMap, HeaderValue, AUTHORIZATION, CONTENT_TYPE, USER_AGENT};
 use tracing::debug;
 
+use super::{
+    ChatBuilder, ClientConfig, EmbeddingsBuilder, Provider, SdkError, SdkResult, StreamingChat,
+};
 use crate::types::*;
-use super::{ClientConfig, Provider, SdkError, SdkResult, ChatBuilder, EmbeddingsBuilder, StreamingChat};
 
 /// LLM-Simulator SDK Client
 ///
@@ -52,7 +54,11 @@ impl Client {
     pub fn with_config(config: ClientConfig) -> SdkResult<Self> {
         let mut headers = HeaderMap::new();
         headers.insert(CONTENT_TYPE, HeaderValue::from_static("application/json"));
-        headers.insert(USER_AGENT, HeaderValue::from_str(&config.user_agent).unwrap_or_else(|_| HeaderValue::from_static("llm-simulator-sdk")));
+        headers.insert(
+            USER_AGENT,
+            HeaderValue::from_str(&config.user_agent)
+                .unwrap_or_else(|_| HeaderValue::from_static("llm-simulator-sdk")),
+        );
 
         let http = reqwest::Client::builder()
             .default_headers(headers)
@@ -95,22 +101,37 @@ impl Client {
 
     /// List available models
     pub async fn list_models(&self) -> SdkResult<ModelsResponse> {
-        let url = format!("{}{}", self.config.base_url, self.config.provider.models_endpoint());
-        let response = self.execute_request(reqwest::Method::GET, &url, None::<&()>).await?;
+        let url = format!(
+            "{}{}",
+            self.config.base_url,
+            self.config.provider.models_endpoint()
+        );
+        let response = self
+            .execute_request(reqwest::Method::GET, &url, None::<&()>)
+            .await?;
         Ok(response)
     }
 
     /// Get a specific model
     pub async fn get_model(&self, model_id: &str) -> SdkResult<ModelObject> {
-        let url = format!("{}{}/{}", self.config.base_url, self.config.provider.models_endpoint(), model_id);
-        let response = self.execute_request(reqwest::Method::GET, &url, None::<&()>).await?;
+        let url = format!(
+            "{}{}/{}",
+            self.config.base_url,
+            self.config.provider.models_endpoint(),
+            model_id
+        );
+        let response = self
+            .execute_request(reqwest::Method::GET, &url, None::<&()>)
+            .await?;
         Ok(response)
     }
 
     /// Check health of the simulator instance
     pub async fn health(&self) -> SdkResult<HealthResponse> {
         let url = format!("{}/health", self.config.base_url);
-        let response = self.execute_request(reqwest::Method::GET, &url, None::<&()>).await?;
+        let response = self
+            .execute_request(reqwest::Method::GET, &url, None::<&()>)
+            .await?;
         Ok(response)
     }
 
@@ -124,31 +145,47 @@ impl Client {
     }
 
     /// Send a raw chat completion request
-    pub async fn chat_completion(&self, request: &ChatCompletionRequest) -> SdkResult<ChatCompletionResponse> {
+    pub async fn chat_completion(
+        &self,
+        request: &ChatCompletionRequest,
+    ) -> SdkResult<ChatCompletionResponse> {
         let endpoint = self.config.provider.chat_endpoint(&request.model);
         let url = format!("{}{}", self.config.base_url, endpoint);
 
         match self.config.provider {
             Provider::OpenAI => {
-                self.execute_request(reqwest::Method::POST, &url, Some(request)).await
+                self.execute_request(reqwest::Method::POST, &url, Some(request))
+                    .await
             }
             Provider::Anthropic => {
                 let anthropic_request = convert_to_anthropic(request);
-                let response: serde_json::Value = self.execute_request(reqwest::Method::POST, &url, Some(&anthropic_request)).await?;
+                let response: serde_json::Value = self
+                    .execute_request(reqwest::Method::POST, &url, Some(&anthropic_request))
+                    .await?;
                 convert_from_anthropic(response)
             }
             Provider::Google => {
                 let google_request = convert_to_google(request);
-                let response: serde_json::Value = self.execute_request(reqwest::Method::POST, &url, Some(&google_request)).await?;
+                let response: serde_json::Value = self
+                    .execute_request(reqwest::Method::POST, &url, Some(&google_request))
+                    .await?;
                 convert_from_google(response, &request.model)
             }
         }
     }
 
     /// Send a raw embeddings request
-    pub async fn create_embeddings(&self, request: &EmbeddingsRequest) -> SdkResult<EmbeddingsResponse> {
-        let url = format!("{}{}", self.config.base_url, self.config.provider.embeddings_endpoint());
-        self.execute_request(reqwest::Method::POST, &url, Some(request)).await
+    pub async fn create_embeddings(
+        &self,
+        request: &EmbeddingsRequest,
+    ) -> SdkResult<EmbeddingsResponse> {
+        let url = format!(
+            "{}{}",
+            self.config.base_url,
+            self.config.provider.embeddings_endpoint()
+        );
+        self.execute_request(reqwest::Method::POST, &url, Some(request))
+            .await
     }
 
     /// Execute an HTTP request with retry logic
@@ -201,7 +238,10 @@ impl Client {
                             Ok(data) => return Ok(data),
                             Err(e) => {
                                 last_error = Some(SdkError::Json(serde_json::Error::io(
-                                    std::io::Error::new(std::io::ErrorKind::InvalidData, e.to_string())
+                                    std::io::Error::new(
+                                        std::io::ErrorKind::InvalidData,
+                                        e.to_string(),
+                                    ),
                                 )));
                             }
                         }
@@ -403,7 +443,9 @@ fn convert_from_anthropic(response: serde_json::Value) -> SdkResult<ChatCompleti
 }
 
 fn convert_to_google(request: &ChatCompletionRequest) -> serde_json::Value {
-    let contents: Vec<serde_json::Value> = request.messages.iter()
+    let contents: Vec<serde_json::Value> = request
+        .messages
+        .iter()
         .filter(|m| m.role != Role::System)
         .map(|m| {
             let role = match m.role {
@@ -436,7 +478,10 @@ fn convert_to_google(request: &ChatCompletionRequest) -> serde_json::Value {
     body
 }
 
-fn convert_from_google(response: serde_json::Value, model: &str) -> SdkResult<ChatCompletionResponse> {
+fn convert_from_google(
+    response: serde_json::Value,
+    model: &str,
+) -> SdkResult<ChatCompletionResponse> {
     let content = response["candidates"]
         .as_array()
         .and_then(|arr| arr.first())
@@ -446,8 +491,12 @@ fn convert_from_google(response: serde_json::Value, model: &str) -> SdkResult<Ch
         .unwrap_or("")
         .to_string();
 
-    let input_tokens = response["usageMetadata"]["promptTokenCount"].as_u64().unwrap_or(0) as u32;
-    let output_tokens = response["usageMetadata"]["candidatesTokenCount"].as_u64().unwrap_or(0) as u32;
+    let input_tokens = response["usageMetadata"]["promptTokenCount"]
+        .as_u64()
+        .unwrap_or(0) as u32;
+    let output_tokens = response["usageMetadata"]["candidatesTokenCount"]
+        .as_u64()
+        .unwrap_or(0) as u32;
 
     Ok(ChatCompletionResponse::simple(
         format!("gen-{}", uuid::Uuid::new_v4()),
@@ -489,10 +538,7 @@ mod tests {
     fn test_convert_to_anthropic() {
         let request = ChatCompletionRequest::new(
             "claude-3",
-            vec![
-                Message::system("You are helpful"),
-                Message::user("Hello"),
-            ],
+            vec![Message::system("You are helpful"), Message::user("Hello")],
         );
 
         let converted = convert_to_anthropic(&request);

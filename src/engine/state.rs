@@ -1,9 +1,9 @@
 //! Engine state and statistics tracking
 
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::Duration;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::time::Duration;
 
 /// Thread-safe engine state tracking
 pub struct EngineState {
@@ -38,7 +38,8 @@ impl EngineState {
     /// Add token counts
     pub fn add_tokens(&self, input: u64, output: u64) {
         self.total_input_tokens.fetch_add(input, Ordering::Relaxed);
-        self.total_output_tokens.fetch_add(output, Ordering::Relaxed);
+        self.total_output_tokens
+            .fetch_add(output, Ordering::Relaxed);
     }
 
     /// Record a latency measurement
@@ -76,7 +77,7 @@ impl Default for EngineState {
 }
 
 /// Engine statistics
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, Default)]
 pub struct EngineStats {
     pub total_requests: u64,
     pub total_errors: u64,
@@ -101,18 +102,6 @@ impl EngineStats {
             0.0
         } else {
             (self.total_input_tokens + self.total_output_tokens) as f64 / self.total_requests as f64
-        }
-    }
-}
-
-impl Default for EngineStats {
-    fn default() -> Self {
-        Self {
-            total_requests: 0,
-            total_errors: 0,
-            total_input_tokens: 0,
-            total_output_tokens: 0,
-            latency: LatencyStats::default(),
         }
     }
 }
@@ -171,7 +160,9 @@ impl LatencyTracker {
         let mean = self.sum.as_secs_f64() * 1000.0 / self.count as f64;
 
         // Calculate percentiles from samples
-        let mut sorted: Vec<f64> = self.samples.iter()
+        let mut sorted: Vec<f64> = self
+            .samples
+            .iter()
             .map(|d| d.as_secs_f64() * 1000.0)
             .collect();
         sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());

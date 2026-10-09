@@ -5,21 +5,13 @@
 
 #![allow(dead_code)]
 
-use axum::{
-    extract::Request,
-    middleware::Next,
-    response::Response,
-    http::StatusCode,
-};
+use axum::{extract::Request, http::StatusCode, middleware::Next, response::Response};
 use std::time::Instant;
 use tracing::{info, warn};
 use uuid::Uuid;
 
 /// Request ID middleware
-pub async fn request_id_middleware(
-    mut request: Request,
-    next: Next,
-) -> Response {
+pub async fn request_id_middleware(mut request: Request, next: Next) -> Response {
     let request_id = request
         .headers()
         .get("x-request-id")
@@ -27,13 +19,17 @@ pub async fn request_id_middleware(
         .map(|s| s.to_string())
         .unwrap_or_else(|| Uuid::new_v4().to_string());
 
-    request.extensions_mut().insert(RequestId(request_id.clone()));
+    request
+        .extensions_mut()
+        .insert(RequestId(request_id.clone()));
 
     let mut response = next.run(request).await;
 
     response.headers_mut().insert(
         "x-request-id",
-        request_id.parse().unwrap_or_else(|_| "unknown".parse().unwrap()),
+        request_id
+            .parse()
+            .unwrap_or_else(|_| "unknown".parse().unwrap()),
     );
 
     response
@@ -44,10 +40,7 @@ pub async fn request_id_middleware(
 pub struct RequestId(pub String);
 
 /// Logging middleware
-pub async fn logging_middleware(
-    request: Request,
-    next: Next,
-) -> Response {
+pub async fn logging_middleware(request: Request, next: Next) -> Response {
     let start = Instant::now();
     let method = request.method().clone();
     let uri = request.uri().clone();
@@ -94,10 +87,7 @@ pub async fn logging_middleware(
 }
 
 /// API key validation middleware
-pub async fn api_key_middleware(
-    request: Request,
-    next: Next,
-) -> Result<Response, StatusCode> {
+pub async fn api_key_middleware(request: Request, next: Next) -> Result<Response, StatusCode> {
     // Check for API key in Authorization header
     let auth_header = request
         .headers()

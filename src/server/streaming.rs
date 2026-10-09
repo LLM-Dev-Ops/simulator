@@ -60,8 +60,16 @@ pub fn create_anthropic_sse_stream(
     let model = model.to_string();
     let chunks = response.into_chunks();
     let usage = Usage::new(
-        chunks.iter().map(|(_, c)| c.usage.as_ref().map(|u| u.prompt_tokens).unwrap_or(0)).max().unwrap_or(0),
-        chunks.iter().map(|(_, c)| c.usage.as_ref().map(|u| u.completion_tokens).unwrap_or(0)).max().unwrap_or(0),
+        chunks
+            .iter()
+            .map(|(_, c)| c.usage.as_ref().map(|u| u.prompt_tokens).unwrap_or(0))
+            .max()
+            .unwrap_or(0),
+        chunks
+            .iter()
+            .map(|(_, c)| c.usage.as_ref().map(|u| u.completion_tokens).unwrap_or(0))
+            .max()
+            .unwrap_or(0),
     );
 
     Box::pin(stream::unfold(
@@ -89,9 +97,7 @@ pub fn create_anthropic_sse_stream(
                     },
                 };
                 let data = sanitize_sse_data(&serde_json::to_string(&event).unwrap_or_default());
-                let sse_event = Event::default()
-                    .event("message_start")
-                    .data(data);
+                let sse_event = Event::default().event("message_start").data(data);
                 return Some((Ok(sse_event), (iter, 0, id, model, usage, true, false)));
             }
 
@@ -102,40 +108,61 @@ pub fn create_anthropic_sse_stream(
                     }
 
                     // Convert to Anthropic format
-                    let content = chunk.choices.first()
+                    let content = chunk
+                        .choices
+                        .first()
                         .and_then(|c| c.delta.content.clone())
                         .unwrap_or_default();
 
-                    if content.is_empty() && chunk.choices.first().and_then(|c| c.finish_reason).is_none() {
+                    if content.is_empty()
+                        && chunk
+                            .choices
+                            .first()
+                            .and_then(|c| c.finish_reason)
+                            .is_none()
+                    {
                         // Skip empty deltas that aren't finish markers
                         return Some((
                             Ok(Event::default().event("ping").data("{}")),
-                            (iter, index, id, model, usage, started, false)
+                            (iter, index, id, model, usage, started, false),
                         ));
                     }
 
-                    if chunk.choices.first().and_then(|c| c.finish_reason).is_some() {
+                    if chunk
+                        .choices
+                        .first()
+                        .and_then(|c| c.finish_reason)
+                        .is_some()
+                    {
                         // Send content_block_stop, message_delta, and message_stop
                         let stop_event = AnthropicStreamEvent::ContentBlockStop { index: 0 };
-                        let data = sanitize_sse_data(&serde_json::to_string(&stop_event).unwrap_or_default());
-                        let sse_event = Event::default()
-                            .event("content_block_stop")
-                            .data(data);
-                        return Some((Ok(sse_event), (iter, index, id, model, usage, started, true)));
+                        let data = sanitize_sse_data(
+                            &serde_json::to_string(&stop_event).unwrap_or_default(),
+                        );
+                        let sse_event = Event::default().event("content_block_stop").data(data);
+                        return Some((
+                            Ok(sse_event),
+                            (iter, index, id, model, usage, started, true),
+                        ));
                     }
 
                     // Send content_block_start if this is first content
                     if index == 0 {
                         let start_event = AnthropicStreamEvent::ContentBlockStart {
                             index: 0,
-                            content_block: AnthropicContentBlockType::Text { text: String::new() },
+                            content_block: AnthropicContentBlockType::Text {
+                                text: String::new(),
+                            },
                         };
-                        let data = sanitize_sse_data(&serde_json::to_string(&start_event).unwrap_or_default());
-                        let sse_event = Event::default()
-                            .event("content_block_start")
-                            .data(data);
+                        let data = sanitize_sse_data(
+                            &serde_json::to_string(&start_event).unwrap_or_default(),
+                        );
+                        let sse_event = Event::default().event("content_block_start").data(data);
                         // We need to send content delta next
-                        return Some((Ok(sse_event), (iter, index + 1, id, model, usage, started, false)));
+                        return Some((
+                            Ok(sse_event),
+                            (iter, index + 1, id, model, usage, started, false),
+                        ));
                     }
 
                     // Send content delta
@@ -143,20 +170,24 @@ pub fn create_anthropic_sse_stream(
                         index: 0,
                         delta: AnthropicDelta::TextDelta { text: content },
                     };
-                    let data = sanitize_sse_data(&serde_json::to_string(&delta_event).unwrap_or_default());
-                    let sse_event = Event::default()
-                        .event("content_block_delta")
-                        .data(data);
-                    Some((Ok(sse_event), (iter, index + 1, id, model, usage, started, false)))
+                    let data =
+                        sanitize_sse_data(&serde_json::to_string(&delta_event).unwrap_or_default());
+                    let sse_event = Event::default().event("content_block_delta").data(data);
+                    Some((
+                        Ok(sse_event),
+                        (iter, index + 1, id, model, usage, started, false),
+                    ))
                 }
                 None => {
                     // Send message_stop
                     let event = AnthropicStreamEvent::MessageStop;
-                    let data = sanitize_sse_data(&serde_json::to_string(&event).unwrap_or_default());
-                    let sse_event = Event::default()
-                        .event("message_stop")
-                        .data(data);
-                    Some((Ok(sse_event), (iter, index, id, model, usage, started, true)))
+                    let data =
+                        sanitize_sse_data(&serde_json::to_string(&event).unwrap_or_default());
+                    let sse_event = Event::default().event("message_stop").data(data);
+                    Some((
+                        Ok(sse_event),
+                        (iter, index, id, model, usage, started, true),
+                    ))
                 }
             }
         },
@@ -178,7 +209,9 @@ pub fn create_gemini_sse_stream(
                         sleep(delay).await;
                     }
 
-                    let content = chunk.choices.first()
+                    let content = chunk
+                        .choices
+                        .first()
                         .and_then(|c| c.delta.content.clone())
                         .unwrap_or_default();
 
@@ -191,7 +224,9 @@ pub fn create_gemini_sse_stream(
                                 role: "model".to_string(),
                                 parts: vec![GeminiResponsePart { text: content }],
                             },
-                            finish_reason: chunk.choices.first()
+                            finish_reason: chunk
+                                .choices
+                                .first()
                                 .and_then(|c| c.finish_reason)
                                 .map(|_| "STOP".to_string()),
                             safety_ratings: None,

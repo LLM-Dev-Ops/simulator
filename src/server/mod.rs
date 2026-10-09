@@ -3,34 +3,30 @@
 //! Provides the Axum-based HTTP server with all API endpoints
 //! for OpenAI, Anthropic, and Google API compatibility.
 
-mod routes;
-mod middleware;
 mod handlers;
+mod middleware;
+mod routes;
+pub mod shutdown;
 mod state;
 mod streaming;
-pub mod shutdown;
 
-pub use routes::*;
 pub use handlers::*;
+pub use routes::*;
+pub use shutdown::*;
 pub use state::*;
 pub use streaming::*;
-pub use shutdown::*;
 
 use std::net::SocketAddr;
 use std::sync::Arc;
 
 use axum::Router;
 use tower::ServiceBuilder;
-use tower_http::{
-    timeout::TimeoutLayer,
-    trace::TraceLayer,
-    compression::CompressionLayer,
-};
+use tower_http::{compression::CompressionLayer, timeout::TimeoutLayer, trace::TraceLayer};
 use tracing::{info, warn};
 
 use crate::config::SimulatorConfig;
 use crate::engine::SimulationEngine;
-use crate::security::{SecurityState, apply_security_middleware, build_cors_layer};
+use crate::security::{apply_security_middleware, build_cors_layer, SecurityState};
 use crate::telemetry::{init_telemetry, SimulatorMetrics};
 
 /// Run the simulator server
@@ -44,7 +40,10 @@ pub async fn run_server(config: SimulatorConfig) -> anyhow::Result<()> {
 
     // Validate RuvVector configuration on startup
     if config.ruvvector.require_ruvvector {
-        let service_url = config.ruvvector.service_url.clone()
+        let service_url = config
+            .ruvvector
+            .service_url
+            .clone()
             .or_else(|| std::env::var("RUVVECTOR_SERVICE_URL").ok());
 
         if service_url.is_none() || service_url.as_ref().map(|s| s.is_empty()).unwrap_or(true) {
@@ -93,10 +92,38 @@ pub async fn run_server(config: SimulatorConfig) -> anyhow::Result<()> {
         addr
     );
     info!("Configured models: {}", config.models.len());
-    info!("Latency simulation: {}", if config.latency.enabled { "enabled" } else { "disabled" });
-    info!("Chaos engineering: {}", if config.chaos.enabled { "enabled" } else { "disabled" });
-    info!("API key auth: {}", if config.security.api_keys.enabled { "enabled" } else { "disabled" });
-    info!("Rate limiting: {}", if config.security.rate_limiting.enabled { "enabled" } else { "disabled" });
+    info!(
+        "Latency simulation: {}",
+        if config.latency.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+    info!(
+        "Chaos engineering: {}",
+        if config.chaos.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+    info!(
+        "API key auth: {}",
+        if config.security.api_keys.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+    info!(
+        "Rate limiting: {}",
+        if config.security.rate_limiting.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
 
     // Create and run the server
     let listener = tokio::net::TcpListener::bind(addr).await?;
@@ -148,10 +175,10 @@ pub fn create_router(state: AppState, security: SecurityState) -> Router {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::security::SecurityState;
     use axum::body::Body;
     use axum::http::{Request, StatusCode};
     use tower::ServiceExt;
-    use crate::security::SecurityState;
 
     fn test_state() -> AppState {
         AppState::new(SimulatorConfig::default())

@@ -12,7 +12,10 @@ use super::state::AppState;
 pub fn openai_routes() -> Router<AppState> {
     Router::new()
         // Chat completions
-        .route("/v1/chat/completions", post(handlers::openai_chat_completions))
+        .route(
+            "/v1/chat/completions",
+            post(handlers::openai_chat_completions),
+        )
         // Embeddings
         .route("/v1/embeddings", post(handlers::openai_embeddings))
         // Models

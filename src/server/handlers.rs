@@ -51,9 +51,7 @@ pub async fn openai_embeddings(
 }
 
 /// GET /v1/models
-pub async fn list_models(
-    State(state): State<AppState>,
-) -> Json<ModelsResponse> {
+pub async fn list_models(State(state): State<AppState>) -> Json<ModelsResponse> {
     Json(state.engine.list_models())
 }
 
@@ -62,9 +60,11 @@ pub async fn get_model(
     State(state): State<AppState>,
     Path(model_id): Path<String>,
 ) -> Result<Json<ModelObject>, SimulationError> {
-    state.engine.get_model(&model_id)
+    state
+        .engine
+        .get_model(&model_id)
         .map(Json)
-        .ok_or_else(|| SimulationError::ModelNotFound(model_id))
+        .ok_or(SimulationError::ModelNotFound(model_id))
 }
 
 // ============== Anthropic Handlers ==============
@@ -75,7 +75,9 @@ pub async fn anthropic_messages(
     Json(request): Json<AnthropicMessagesRequest>,
 ) -> Result<Response, SimulationError> {
     // Convert to internal format
-    let messages = request.messages.iter()
+    let messages = request
+        .messages
+        .iter()
         .map(|m| {
             let role = match m.role.as_str() {
                 "user" => Role::User,
@@ -124,7 +126,9 @@ pub async fn anthropic_messages(
         let response = state.engine.chat_completion(&chat_request).await?;
 
         // Convert to Anthropic format
-        let content = response.choices.first()
+        let content = response
+            .choices
+            .first()
             .and_then(|c| c.message.content.clone())
             .unwrap_or_default();
 
@@ -132,8 +136,16 @@ pub async fn anthropic_messages(
             response.id,
             request.model,
             content,
-            response.usage.as_ref().map(|u| u.prompt_tokens).unwrap_or(0),
-            response.usage.as_ref().map(|u| u.completion_tokens).unwrap_or(0),
+            response
+                .usage
+                .as_ref()
+                .map(|u| u.prompt_tokens)
+                .unwrap_or(0),
+            response
+                .usage
+                .as_ref()
+                .map(|u| u.completion_tokens)
+                .unwrap_or(0),
         );
 
         Ok(Json(anthropic_response).into_response())
@@ -149,14 +161,18 @@ pub async fn gemini_generate_content(
     Json(request): Json<GeminiRequest>,
 ) -> Result<Json<GeminiResponse>, SimulationError> {
     // Convert to internal format
-    let messages = request.contents.iter()
+    let messages = request
+        .contents
+        .iter()
         .map(|c| {
             let role = match c.role.as_str() {
                 "user" => Role::User,
                 "model" => Role::Assistant,
                 _ => Role::User,
             };
-            let content = c.parts.iter()
+            let content = c
+                .parts
+                .iter()
                 .filter_map(|p| p.text.clone())
                 .collect::<Vec<_>>()
                 .join("");
@@ -171,7 +187,8 @@ pub async fn gemini_generate_content(
         })
         .collect::<Vec<_>>();
 
-    let max_tokens = request.generation_config
+    let max_tokens = request
+        .generation_config
         .as_ref()
         .and_then(|c| c.max_output_tokens)
         .unwrap_or(4096);
@@ -179,7 +196,10 @@ pub async fn gemini_generate_content(
     let chat_request = ChatCompletionRequest {
         model: model_id.clone(),
         messages,
-        temperature: request.generation_config.as_ref().and_then(|c| c.temperature),
+        temperature: request
+            .generation_config
+            .as_ref()
+            .and_then(|c| c.temperature),
         top_p: request.generation_config.as_ref().and_then(|c| c.top_p),
         max_tokens: Some(max_tokens),
         stream: false,
@@ -188,14 +208,24 @@ pub async fn gemini_generate_content(
 
     let response = state.engine.chat_completion(&chat_request).await?;
 
-    let content = response.choices.first()
+    let content = response
+        .choices
+        .first()
         .and_then(|c| c.message.content.clone())
         .unwrap_or_default();
 
     let gemini_response = GeminiResponse::new(
         content,
-        response.usage.as_ref().map(|u| u.prompt_tokens).unwrap_or(0),
-        response.usage.as_ref().map(|u| u.completion_tokens).unwrap_or(0),
+        response
+            .usage
+            .as_ref()
+            .map(|u| u.prompt_tokens)
+            .unwrap_or(0),
+        response
+            .usage
+            .as_ref()
+            .map(|u| u.completion_tokens)
+            .unwrap_or(0),
     );
 
     Ok(Json(gemini_response))
@@ -208,14 +238,18 @@ pub async fn gemini_stream_generate_content(
     Json(request): Json<GeminiRequest>,
 ) -> Result<Response, SimulationError> {
     // Convert to internal format (similar to above)
-    let messages = request.contents.iter()
+    let messages = request
+        .contents
+        .iter()
         .map(|c| {
             let role = match c.role.as_str() {
                 "user" => Role::User,
                 "model" => Role::Assistant,
                 _ => Role::User,
             };
-            let content = c.parts.iter()
+            let content = c
+                .parts
+                .iter()
                 .filter_map(|p| p.text.clone())
                 .collect::<Vec<_>>()
                 .join("");
@@ -230,7 +264,8 @@ pub async fn gemini_stream_generate_content(
         })
         .collect();
 
-    let max_tokens = request.generation_config
+    let max_tokens = request
+        .generation_config
         .as_ref()
         .and_then(|c| c.max_output_tokens)
         .unwrap_or(4096);
@@ -238,7 +273,10 @@ pub async fn gemini_stream_generate_content(
     let chat_request = ChatCompletionRequest {
         model: model_id.clone(),
         messages,
-        temperature: request.generation_config.as_ref().and_then(|c| c.temperature),
+        temperature: request
+            .generation_config
+            .as_ref()
+            .and_then(|c| c.temperature),
         max_tokens: Some(max_tokens),
         stream: true,
         ..ChatCompletionRequest::new(&model_id, vec![])
@@ -253,24 +291,18 @@ pub async fn gemini_stream_generate_content(
 // ============== Admin Handlers ==============
 
 /// GET /admin/stats
-pub async fn get_stats(
-    State(state): State<AppState>,
-) -> Json<EngineStats> {
+pub async fn get_stats(State(state): State<AppState>) -> Json<EngineStats> {
     Json(state.engine.stats())
 }
 
 /// POST /admin/stats/reset
-pub async fn reset_stats(
-    State(state): State<AppState>,
-) -> StatusCode {
+pub async fn reset_stats(State(state): State<AppState>) -> StatusCode {
     state.engine.reset_stats();
     StatusCode::NO_CONTENT
 }
 
 /// GET /admin/config
-pub async fn get_config(
-    State(state): State<AppState>,
-) -> Json<SimulatorConfig> {
+pub async fn get_config(State(state): State<AppState>) -> Json<SimulatorConfig> {
     Json(state.engine.config())
 }
 
@@ -282,29 +314,23 @@ pub async fn update_config(
     // Note: Runtime config update requires mutable access
     // For now, return not implemented
     Err(SimulationError::Internal(
-        "Runtime config updates not yet supported".to_string()
+        "Runtime config updates not yet supported".to_string(),
     ))
 }
 
 /// POST /admin/chaos/enable
-pub async fn enable_chaos(
-    State(_state): State<AppState>,
-) -> StatusCode {
+pub async fn enable_chaos(State(_state): State<AppState>) -> StatusCode {
     // Would need mutable access to engine
     StatusCode::NOT_IMPLEMENTED
 }
 
 /// POST /admin/chaos/disable
-pub async fn disable_chaos(
-    State(_state): State<AppState>,
-) -> StatusCode {
+pub async fn disable_chaos(State(_state): State<AppState>) -> StatusCode {
     StatusCode::NOT_IMPLEMENTED
 }
 
 /// GET /admin/chaos/status
-pub async fn chaos_status(
-    State(state): State<AppState>,
-) -> Json<ChaosStatusResponse> {
+pub async fn chaos_status(State(state): State<AppState>) -> Json<ChaosStatusResponse> {
     Json(ChaosStatusResponse {
         enabled: state.config.chaos.enabled,
         global_probability: state.config.chaos.global_probability,
@@ -326,9 +352,7 @@ pub struct ChaosStatusResponse {
 // ============== Health Handlers ==============
 
 /// GET /health
-pub async fn health_check(
-    State(state): State<AppState>,
-) -> Json<DetailedHealthResponse> {
+pub async fn health_check(State(state): State<AppState>) -> Json<DetailedHealthResponse> {
     let mut checks = std::collections::HashMap::new();
     let mut overall_status = HealthStatus::Healthy;
 
@@ -343,7 +367,9 @@ pub async fn health_check(
     let config_check = check_config(&state);
     if config_check.status == ComponentStatus::Fail {
         overall_status = HealthStatus::Unhealthy;
-    } else if config_check.status == ComponentStatus::Warn && overall_status == HealthStatus::Healthy {
+    } else if config_check.status == ComponentStatus::Warn
+        && overall_status == HealthStatus::Healthy
+    {
         overall_status = HealthStatus::Degraded;
     }
     checks.insert("config".to_string(), config_check);
@@ -372,12 +398,15 @@ pub async fn health_check(
     // Check 6: Shutdown state
     if state.shutdown.is_draining() {
         overall_status = HealthStatus::Unhealthy;
-        checks.insert("shutdown".to_string(), ComponentHealth {
-            status: ComponentStatus::Fail,
-            message: Some("Server is draining".to_string()),
-            latency_ms: None,
-            value: None,
-        });
+        checks.insert(
+            "shutdown".to_string(),
+            ComponentHealth {
+                status: ComponentStatus::Fail,
+                message: Some("Server is draining".to_string()),
+                latency_ms: None,
+                value: None,
+            },
+        );
     }
 
     Json(DetailedHealthResponse {
@@ -390,9 +419,7 @@ pub async fn health_check(
 }
 
 /// GET /ready
-pub async fn ready_check(
-    State(state): State<AppState>,
-) -> (StatusCode, Json<ReadyResponse>) {
+pub async fn ready_check(State(state): State<AppState>) -> (StatusCode, Json<ReadyResponse>) {
     // Not ready if draining
     if state.shutdown.is_draining() {
         return (
@@ -437,11 +464,11 @@ pub async fn ready_check(
 }
 
 /// GET /metrics
-pub async fn metrics(
-    State(state): State<AppState>,
-) -> String {
+pub async fn metrics(State(state): State<AppState>) -> String {
     // Update queue metrics before export
-    state.metrics.set_queue_depth(state.shutdown.in_flight_count());
+    state
+        .metrics
+        .set_queue_depth(state.shutdown.in_flight_count());
     state.metrics.export()
 }
 
@@ -628,7 +655,7 @@ mod tests {
         let response = VersionResponse {
             name: "test".to_string(),
             version: "1.0.0".to_string(),
-            rust_version: "1.75".to_string(),
+            rust_version: "1.83".to_string(),
         };
 
         let json = serde_json::to_string(&response).unwrap();

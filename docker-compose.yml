@@ -20,7 +20,7 @@ services:
       dockerfile: Dockerfile
       target: runtime
       args:
-        - RUST_VERSION=1.75
+        - RUST_VERSION=1.83
     container_name: llm-simulator
     hostname: llm-simulator
     restart: unless-stopped

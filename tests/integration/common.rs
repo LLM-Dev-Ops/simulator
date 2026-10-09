@@ -72,7 +72,12 @@ impl TestServer {
 
         // Wait for health endpoint
         for _ in 0..50 {
-            if client.get(format!("{}/health", base_url)).send().await.is_ok() {
+            if client
+                .get(format!("{}/health", base_url))
+                .send()
+                .await
+                .is_ok()
+            {
                 break;
             }
             tokio::time::sleep(Duration::from_millis(100)).await;
@@ -107,7 +112,12 @@ impl TestServer {
     }
 
     /// Send a POST request with authorization
-    pub async fn post_with_auth(&self, path: &str, body: Value, api_key: &str) -> reqwest::Response {
+    pub async fn post_with_auth(
+        &self,
+        path: &str,
+        body: Value,
+        api_key: &str,
+    ) -> reqwest::Response {
         self.client
             .post(self.url(path))
             .header("Authorization", format!("Bearer {}", api_key))

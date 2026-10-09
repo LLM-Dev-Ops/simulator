@@ -1,8 +1,8 @@
 //! OpenAI provider implementation
 
-use async_trait::async_trait;
-use crate::types::Provider;
 use super::ProviderHandler;
+use crate::types::Provider;
+use async_trait::async_trait;
 
 /// OpenAI API handler
 pub struct OpenAIHandler {
@@ -72,8 +72,7 @@ impl ProviderHandler for OpenAIHandler {
     }
 
     fn supports_model(&self, model: &str) -> bool {
-        self.models.iter().any(|m| m == model)
-            || Self::matches_pattern(model)
+        self.models.iter().any(|m| m == model) || Self::matches_pattern(model)
     }
 
     fn supported_models(&self) -> Vec<String> {
@@ -87,40 +86,43 @@ pub mod openai_utils {
 
     /// Convert internal messages to OpenAI format
     pub fn format_messages(messages: &[Message]) -> Vec<serde_json::Value> {
-        messages.iter().map(|m| {
-            let mut msg = serde_json::json!({
-                "role": match m.role {
-                    Role::System => "system",
-                    Role::User => "user",
-                    Role::Assistant => "assistant",
-                    Role::Tool => "tool",
-                    Role::Function => "function",
-                },
-            });
+        messages
+            .iter()
+            .map(|m| {
+                let mut msg = serde_json::json!({
+                    "role": match m.role {
+                        Role::System => "system",
+                        Role::User => "user",
+                        Role::Assistant => "assistant",
+                        Role::Tool => "tool",
+                        Role::Function => "function",
+                    },
+                });
 
-            match &m.content {
-                MessageContent::Text(t) => {
-                    msg["content"] = serde_json::Value::String(t.clone());
+                match &m.content {
+                    MessageContent::Text(t) => {
+                        msg["content"] = serde_json::Value::String(t.clone());
+                    }
+                    MessageContent::Parts(parts) => {
+                        msg["content"] = serde_json::to_value(parts).unwrap_or_default();
+                    }
                 }
-                MessageContent::Parts(parts) => {
-                    msg["content"] = serde_json::to_value(parts).unwrap_or_default();
+
+                if let Some(name) = &m.name {
+                    msg["name"] = serde_json::Value::String(name.clone());
                 }
-            }
 
-            if let Some(name) = &m.name {
-                msg["name"] = serde_json::Value::String(name.clone());
-            }
+                if let Some(tool_calls) = &m.tool_calls {
+                    msg["tool_calls"] = serde_json::to_value(tool_calls).unwrap_or_default();
+                }
 
-            if let Some(tool_calls) = &m.tool_calls {
-                msg["tool_calls"] = serde_json::to_value(tool_calls).unwrap_or_default();
-            }
+                if let Some(tool_call_id) = &m.tool_call_id {
+                    msg["tool_call_id"] = serde_json::Value::String(tool_call_id.clone());
+                }
 
-            if let Some(tool_call_id) = &m.tool_call_id {
-                msg["tool_call_id"] = serde_json::Value::String(tool_call_id.clone());
-            }
-
-            msg
-        }).collect()
+                msg
+            })
+            .collect()
     }
 
     /// Generate OpenAI-style completion ID

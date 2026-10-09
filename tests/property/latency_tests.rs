@@ -1,8 +1,8 @@
 //! Property-based tests for latency distribution
 
-use proptest::prelude::*;
 use llm_simulator::config::LatencyDistribution;
 use llm_simulator::latency::DistributionSampler;
+use proptest::prelude::*;
 
 proptest! {
     /// Test that normal distribution produces positive values
@@ -178,7 +178,10 @@ mod additional_tests {
 
     #[test]
     fn test_sample_n() {
-        let dist = LatencyDistribution::Normal { mean_ms: 100.0, std_dev_ms: 10.0 };
+        let dist = LatencyDistribution::Normal {
+            mean_ms: 100.0,
+            std_dev_ms: 10.0,
+        };
         let sampler = DistributionSampler::with_seed(42);
 
         let samples = sampler.sample_n(&dist, 100);

@@ -2,7 +2,7 @@
 
 Enterprise-grade offline LLM API simulator for testing and development.
 
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.83%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-LLM--DevOps-blue.svg)](LICENSE)
 
 ## Overview
@@ -59,7 +59,7 @@ cargo build --release
 ```
 
 ### Requirements
-- Rust 1.75 or later
+- Rust 1.83 or later
 - Linux, macOS, or Windows
 
 ## Quick Start

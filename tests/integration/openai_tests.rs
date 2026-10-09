@@ -8,7 +8,10 @@ async fn test_chat_completions_basic() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/chat/completions", chat_request("gpt-4", "Hello, world!"))
+        .post(
+            "/v1/chat/completions",
+            chat_request("gpt-4", "Hello, world!"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -20,7 +23,7 @@ async fn test_chat_completions_basic() {
     assert_json_field(&body, "usage");
 
     assert_eq!(body["object"], "chat.completion");
-    assert!(body["choices"].as_array().unwrap().len() > 0);
+    assert!(!body["choices"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -67,7 +70,10 @@ async fn test_chat_completions_gpt35_turbo() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/chat/completions", chat_request("gpt-3.5-turbo", "Test message"))
+        .post(
+            "/v1/chat/completions",
+            chat_request("gpt-3.5-turbo", "Test message"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -92,7 +98,10 @@ async fn test_chat_completions_invalid_model() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/chat/completions", chat_request("nonexistent-model", "Test"))
+        .post(
+            "/v1/chat/completions",
+            chat_request("nonexistent-model", "Test"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 404);
@@ -106,7 +115,10 @@ async fn test_embeddings_basic() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/embeddings", embeddings_request("text-embedding-ada-002", "Hello world"))
+        .post(
+            "/v1/embeddings",
+            embeddings_request("text-embedding-ada-002", "Hello world"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -117,8 +129,8 @@ async fn test_embeddings_basic() {
     assert_eq!(body["object"], "list");
 
     let embeddings = body["data"].as_array().unwrap();
-    assert!(embeddings.len() > 0);
-    assert!(embeddings[0]["embedding"].as_array().unwrap().len() > 0);
+    assert!(!embeddings.is_empty());
+    assert!(!embeddings[0]["embedding"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -126,7 +138,10 @@ async fn test_embeddings_3_small() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/embeddings", embeddings_request("text-embedding-3-small", "Test embedding"))
+        .post(
+            "/v1/embeddings",
+            embeddings_request("text-embedding-3-small", "Test embedding"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -146,13 +161,10 @@ async fn test_list_models() {
     assert_eq!(body["object"], "list");
 
     let models = body["data"].as_array().unwrap();
-    assert!(models.len() > 0);
+    assert!(!models.is_empty());
 
     // Check that expected models exist
-    let model_ids: Vec<&str> = models
-        .iter()
-        .filter_map(|m| m["id"].as_str())
-        .collect();
+    let model_ids: Vec<&str> = models.iter().filter_map(|m| m["id"].as_str()).collect();
 
     assert!(model_ids.contains(&"gpt-4"));
     assert!(model_ids.contains(&"gpt-3.5-turbo"));

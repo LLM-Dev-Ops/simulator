@@ -1,7 +1,7 @@
 //! Message types for chat completions
 
-use serde::{Deserialize, Serialize};
 use super::Role;
+use serde::{Deserialize, Serialize};
 
 /// A message in a chat conversation
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -56,18 +56,17 @@ impl Message {
     pub fn text(&self) -> String {
         match &self.content {
             MessageContent::Text(t) => t.clone(),
-            MessageContent::Parts(parts) => {
-                parts.iter()
-                    .filter_map(|p| {
-                        if let ContentPart::Text { text } = p {
-                            Some(text.as_str())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            MessageContent::Parts(parts) => parts
+                .iter()
+                .filter_map(|p| {
+                    if let ContentPart::Text { text } = p {
+                        Some(text.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(""),
         }
     }
 
@@ -98,18 +97,17 @@ impl MessageContent {
     pub fn text(&self) -> String {
         match self {
             MessageContent::Text(t) => t.clone(),
-            MessageContent::Parts(parts) => {
-                parts.iter()
-                    .filter_map(|p| {
-                        if let ContentPart::Text { text } = p {
-                            Some(text.as_str())
-                        } else {
-                            None
-                        }
-                    })
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            MessageContent::Parts(parts) => parts
+                .iter()
+                .filter_map(|p| {
+                    if let ContentPart::Text { text } = p {
+                        Some(text.as_str())
+                    } else {
+                        None
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join(""),
         }
     }
 }
