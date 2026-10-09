@@ -94,19 +94,24 @@ impl Default for RuvVectorConfig {
 impl RuvVectorConfig {
     /// Create configuration from environment variables
     pub fn from_env() -> Result<Self, RuvVectorError> {
-        let service_url = std::env::var(RUVVECTOR_SERVICE_URL_ENV)
-            .map_err(|_| RuvVectorError::ConfigError(
-                format!("Environment variable {} not set", RUVVECTOR_SERVICE_URL_ENV)
-            ))?;
+        let service_url = std::env::var(RUVVECTOR_SERVICE_URL_ENV).map_err(|_| {
+            RuvVectorError::ConfigError(format!(
+                "Environment variable {} not set",
+                RUVVECTOR_SERVICE_URL_ENV
+            ))
+        })?;
 
         if service_url.is_empty() {
-            return Err(RuvVectorError::ConfigError(
-                format!("{} is empty", RUVVECTOR_SERVICE_URL_ENV)
-            ));
+            return Err(RuvVectorError::ConfigError(format!(
+                "{} is empty",
+                RUVVECTOR_SERVICE_URL_ENV
+            )));
         }
 
-        let mut config = Self::default();
-        config.service_url = service_url;
+        let mut config = Self {
+            service_url,
+            ..Default::default()
+        };
 
         // Optional environment overrides
         if let Ok(timeout) = std::env::var("RUVVECTOR_TIMEOUT_SECS") {
@@ -137,15 +142,13 @@ impl RuvVectorConfig {
     pub fn validate(&self) -> Result<(), RuvVectorError> {
         if self.service_url.is_empty() {
             return Err(RuvVectorError::ConfigError(
-                "service_url is required".to_string()
+                "service_url is required".to_string(),
             ));
         }
 
         // Validate URL format
         url::Url::parse(&self.service_url)
-            .map_err(|e| RuvVectorError::ConfigError(
-                format!("Invalid service_url: {}", e)
-            ))?;
+            .map_err(|e| RuvVectorError::ConfigError(format!("Invalid service_url: {}", e)))?;
 
         Ok(())
     }
@@ -161,10 +164,7 @@ pub enum RuvVectorError {
     ConnectionFailed(String),
 
     #[error("Request failed: {status} - {message}")]
-    RequestFailed {
-        status: u16,
-        message: String,
-    },
+    RequestFailed { status: u16, message: String },
 
     #[error("Service unavailable: {0}")]
     ServiceUnavailable(String),
@@ -236,8 +236,12 @@ pub struct QueryRequest {
     pub include_metadata: bool,
 }
 
-fn default_top_k() -> usize { 10 }
-fn default_true() -> bool { true }
+fn default_top_k() -> usize {
+    10
+}
+fn default_true() -> bool {
+    true
+}
 
 impl Default for QueryRequest {
     fn default() -> Self {
@@ -461,7 +465,8 @@ pub trait RuvVectorConsumer: Send + Sync {
     async fn query(&self, request: &QueryRequest) -> Result<QueryResponse, RuvVectorError>;
 
     /// Run simulation via the service
-    async fn simulate(&self, request: &SimulateRequest) -> Result<SimulateResponse, RuvVectorError>;
+    async fn simulate(&self, request: &SimulateRequest)
+        -> Result<SimulateResponse, RuvVectorError>;
 
     /// Check service health
     async fn health_check(&self) -> Result<HealthResponse, RuvVectorError>;
@@ -492,9 +497,9 @@ impl RuvVectorAdapter {
             .connect_timeout(Duration::from_secs(config.connect_timeout_secs))
             .pool_max_idle_per_host(10)
             .build()
-            .map_err(|e| RuvVectorError::ConfigError(
-                format!("Failed to create HTTP client: {}", e)
-            ))?;
+            .map_err(|e| {
+                RuvVectorError::ConfigError(format!("Failed to create HTTP client: {}", e))
+            })?;
 
         let cache = if config.cache_enabled {
             Some(Arc::new(Cache::new(CacheConfig {
@@ -567,36 +572,43 @@ impl RuvVectorAdapter {
     ) -> Result<R, RuvVectorError> {
         let url = self.endpoint_url(endpoint);
 
-        let result = self.retry_policy.retry(|| async {
-            let response = self.client
-                .post(&url)
-                .json(body)
-                .send()
-                .await
-                .map_err(|e| {
-                    if e.is_timeout() {
-                        RuvVectorError::Timeout(Duration::from_secs(self.config.timeout_secs))
-                    } else if e.is_connect() {
-                        RuvVectorError::ConnectionFailed(e.to_string())
-                    } else {
-                        RuvVectorError::RequestFailed {
-                            status: 0,
-                            message: e.to_string(),
+        let result = self
+            .retry_policy
+            .retry(|| async {
+                let response = self
+                    .client
+                    .post(&url)
+                    .json(body)
+                    .send()
+                    .await
+                    .map_err(|e| {
+                        if e.is_timeout() {
+                            RuvVectorError::Timeout(Duration::from_secs(self.config.timeout_secs))
+                        } else if e.is_connect() {
+                            RuvVectorError::ConnectionFailed(e.to_string())
+                        } else {
+                            RuvVectorError::RequestFailed {
+                                status: 0,
+                                message: e.to_string(),
+                            }
                         }
-                    }
-                })?;
+                    })?;
 
-            let status = response.status();
+                let status = response.status();
 
-            if status.is_success() {
-                response.json::<R>().await.map_err(|e| {
-                    RuvVectorError::InvalidResponse(format!("Failed to parse response: {}", e))
-                })
-            } else {
-                let message = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-                Err(self.map_status_to_error(status, message))
-            }
-        }).await;
+                if status.is_success() {
+                    response.json::<R>().await.map_err(|e| {
+                        RuvVectorError::InvalidResponse(format!("Failed to parse response: {}", e))
+                    })
+                } else {
+                    let message = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
+                    Err(self.map_status_to_error(status, message))
+                }
+            })
+            .await;
 
         result.map_err(|e| match e {
             crate::infra::RetryError::MaxRetriesExceeded { last_error, .. } => last_error,
@@ -610,18 +622,13 @@ impl RuvVectorAdapter {
 
     /// Execute a GET request with retry logic
     #[instrument(skip(self), fields(endpoint = %endpoint))]
-    async fn get<R: for<'de> Deserialize<'de>>(
-        &self,
-        endpoint: &str,
-    ) -> Result<R, RuvVectorError> {
+    async fn get<R: for<'de> Deserialize<'de>>(&self, endpoint: &str) -> Result<R, RuvVectorError> {
         let url = self.endpoint_url(endpoint);
 
-        let result = self.retry_policy.retry(|| async {
-            let response = self.client
-                .get(&url)
-                .send()
-                .await
-                .map_err(|e| {
+        let result = self
+            .retry_policy
+            .retry(|| async {
+                let response = self.client.get(&url).send().await.map_err(|e| {
                     if e.is_timeout() {
                         RuvVectorError::Timeout(Duration::from_secs(self.config.timeout_secs))
                     } else if e.is_connect() {
@@ -634,17 +641,21 @@ impl RuvVectorAdapter {
                     }
                 })?;
 
-            let status = response.status();
+                let status = response.status();
 
-            if status.is_success() {
-                response.json::<R>().await.map_err(|e| {
-                    RuvVectorError::InvalidResponse(format!("Failed to parse response: {}", e))
-                })
-            } else {
-                let message = response.text().await.unwrap_or_else(|_| "Unknown error".to_string());
-                Err(self.map_status_to_error(status, message))
-            }
-        }).await;
+                if status.is_success() {
+                    response.json::<R>().await.map_err(|e| {
+                        RuvVectorError::InvalidResponse(format!("Failed to parse response: {}", e))
+                    })
+                } else {
+                    let message = response
+                        .text()
+                        .await
+                        .unwrap_or_else(|_| "Unknown error".to_string());
+                    Err(self.map_status_to_error(status, message))
+                }
+            })
+            .await;
 
         result.map_err(|e| match e {
             crate::infra::RetryError::MaxRetriesExceeded { last_error, .. } => last_error,
@@ -659,16 +670,16 @@ impl RuvVectorAdapter {
     /// Map HTTP status to error type
     fn map_status_to_error(&self, status: StatusCode, message: String) -> RuvVectorError {
         match status {
-            StatusCode::SERVICE_UNAVAILABLE | StatusCode::BAD_GATEWAY | StatusCode::GATEWAY_TIMEOUT => {
-                RuvVectorError::ServiceUnavailable(message)
-            }
+            StatusCode::SERVICE_UNAVAILABLE
+            | StatusCode::BAD_GATEWAY
+            | StatusCode::GATEWAY_TIMEOUT => RuvVectorError::ServiceUnavailable(message),
             StatusCode::REQUEST_TIMEOUT => {
                 RuvVectorError::Timeout(Duration::from_secs(self.config.timeout_secs))
             }
             _ => RuvVectorError::RequestFailed {
                 status: status.as_u16(),
                 message,
-            }
+            },
         }
     }
 
@@ -712,7 +723,10 @@ impl RuvVectorConsumer for RuvVectorAdapter {
     }
 
     #[instrument(skip(self, request), fields(model = %request.model))]
-    async fn simulate(&self, request: &SimulateRequest) -> Result<SimulateResponse, RuvVectorError> {
+    async fn simulate(
+        &self,
+        request: &SimulateRequest,
+    ) -> Result<SimulateResponse, RuvVectorError> {
         // Simulation requests are not cached as they should produce varied results
         self.post("/simulate", request).await
     }
@@ -761,7 +775,10 @@ impl OptionalRuvVectorAdapter {
     }
 
     /// Query with fallback to None if not configured
-    pub async fn query(&self, request: &QueryRequest) -> Option<Result<QueryResponse, RuvVectorError>> {
+    pub async fn query(
+        &self,
+        request: &QueryRequest,
+    ) -> Option<Result<QueryResponse, RuvVectorError>> {
         if let Some(adapter) = &self.inner {
             Some(adapter.query(request).await)
         } else {
@@ -773,7 +790,10 @@ impl OptionalRuvVectorAdapter {
     ///
     /// Returns `NotConfigured` error instead of None when the adapter is not configured.
     /// Use this when `require_ruvvector: true` in the configuration.
-    pub async fn query_required(&self, request: &QueryRequest) -> Result<QueryResponse, RuvVectorError> {
+    pub async fn query_required(
+        &self,
+        request: &QueryRequest,
+    ) -> Result<QueryResponse, RuvVectorError> {
         if let Some(adapter) = &self.inner {
             adapter.query(request).await
         } else {
@@ -782,7 +802,10 @@ impl OptionalRuvVectorAdapter {
     }
 
     /// Simulate with fallback to None if not configured
-    pub async fn simulate(&self, request: &SimulateRequest) -> Option<Result<SimulateResponse, RuvVectorError>> {
+    pub async fn simulate(
+        &self,
+        request: &SimulateRequest,
+    ) -> Option<Result<SimulateResponse, RuvVectorError>> {
         if let Some(adapter) = &self.inner {
             Some(adapter.simulate(request).await)
         } else {
@@ -794,7 +817,10 @@ impl OptionalRuvVectorAdapter {
     ///
     /// Returns `NotConfigured` error instead of None when the adapter is not configured.
     /// Use this when `require_ruvvector: true` in the configuration.
-    pub async fn simulate_required(&self, request: &SimulateRequest) -> Result<SimulateResponse, RuvVectorError> {
+    pub async fn simulate_required(
+        &self,
+        request: &SimulateRequest,
+    ) -> Result<SimulateResponse, RuvVectorError> {
         if let Some(adapter) = &self.inner {
             adapter.simulate(request).await
         } else {

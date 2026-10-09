@@ -1,6 +1,7 @@
 'use strict';
 
 const http = require('http');
+process.env.CORS_ALLOWED_ORIGINS = 'https://console.example.com';
 const { handler } = require('./index');
 
 const PORT = 0; // Random available port
@@ -22,7 +23,7 @@ function request(method, path, body, extraHeaders) {
       let data = '';
       res.on('data', (chunk) => { data += chunk; });
       res.on('end', () => {
-        resolve({ status: res.statusCode, body: JSON.parse(data) });
+        resolve({ status: res.statusCode, headers: res.headers, body: JSON.parse(data) });
       });
     });
     req.on('error', reject);
@@ -177,6 +178,22 @@ async function runTests() {
   assert(we.status === 200, 'status 200');
   const wed = we.body.signal.payload.data;
   assert(wed.confidence > w.body.signal.payload.data.confidence, 'more evidence produces higher confidence');
+
+  // ---- CORS allowlist ----
+  console.log('\n[11] CORS exact-origin allowlist');
+  const allowedOrigin = await request('GET', '/health', null, { Origin: 'https://console.example.com' });
+  assert(allowedOrigin.status === 200, 'allowed origin request succeeds');
+  assert(allowedOrigin.headers['access-control-allow-origin'] === 'https://console.example.com', 'configured origin receives CORS header');
+  assert(allowedOrigin.headers['access-control-allow-credentials'] === 'true', 'configured origin may use credentials');
+
+  const deniedOrigin = await request('GET', '/health', null, { Origin: 'https://attacker.example' });
+  assert(deniedOrigin.status === 200, 'unconfigured origin does not affect server-to-server behavior');
+  assert(!deniedOrigin.headers['access-control-allow-origin'], 'unconfigured origin receives no CORS header');
+  assert(!deniedOrigin.headers['access-control-allow-credentials'], 'unconfigured origin receives no credential permission');
+
+  const noOrigin = await request('GET', '/health');
+  assert(noOrigin.status === 200, 'request without Origin succeeds');
+  assert(!noOrigin.headers['access-control-allow-origin'], 'request without Origin does not advertise browser access');
 }
 
 // Boot server and run

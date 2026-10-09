@@ -17,11 +17,11 @@
 //! let spans = adapter.consume_trace_spans("request-123").await?;
 //! ```
 
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 
 /// Classifies a span within the FEU (Foundational Execution Unit) hierarchy.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
@@ -208,16 +208,10 @@ pub enum MetricType {
 #[async_trait]
 pub trait ObservatoryConsumer: Send + Sync {
     /// Consume trace spans for a request
-    async fn consume_trace_spans(
-        &self,
-        trace_id: &str,
-    ) -> Result<Vec<ConsumedSpan>, AdapterError>;
+    async fn consume_trace_spans(&self, trace_id: &str) -> Result<Vec<ConsumedSpan>, AdapterError>;
 
     /// Consume a specific span by ID
-    async fn consume_span(
-        &self,
-        span_id: &str,
-    ) -> Result<Option<ConsumedSpan>, AdapterError>;
+    async fn consume_span(&self, span_id: &str) -> Result<Option<ConsumedSpan>, AdapterError>;
 
     /// Consume state transitions for a time range
     async fn consume_state_transitions(
@@ -343,10 +337,7 @@ impl Default for ObservatoryAdapter {
 
 #[async_trait]
 impl ObservatoryConsumer for ObservatoryAdapter {
-    async fn consume_trace_spans(
-        &self,
-        trace_id: &str,
-    ) -> Result<Vec<ConsumedSpan>, AdapterError> {
+    async fn consume_trace_spans(&self, trace_id: &str) -> Result<Vec<ConsumedSpan>, AdapterError> {
         // Check cache first
         if let Some(cached) = self.span_cache.read().get(trace_id) {
             return Ok(cached.clone());
@@ -357,10 +348,7 @@ impl ObservatoryConsumer for ObservatoryAdapter {
         Ok(Vec::new())
     }
 
-    async fn consume_span(
-        &self,
-        _span_id: &str,
-    ) -> Result<Option<ConsumedSpan>, AdapterError> {
+    async fn consume_span(&self, _span_id: &str) -> Result<Option<ConsumedSpan>, AdapterError> {
         // Single span lookup
         Ok(None)
     }
@@ -386,7 +374,9 @@ impl ObservatoryConsumer for ObservatoryAdapter {
         &self,
     ) -> Result<StateTransitionSubscription, AdapterError> {
         // Create subscription for real-time updates
-        Ok(StateTransitionSubscription::new(uuid::Uuid::new_v4().to_string()))
+        Ok(StateTransitionSubscription::new(
+            uuid::Uuid::new_v4().to_string(),
+        ))
     }
 
     async fn health_check(&self) -> Result<bool, AdapterError> {
@@ -414,9 +404,8 @@ impl ConsumedSpan {
 
     /// Get duration in milliseconds
     pub fn duration_ms(&self) -> Option<f64> {
-        self.latency_ms.or_else(|| {
-            self.end_time.map(|end| (end - self.start_time) as f64)
-        })
+        self.latency_ms
+            .or_else(|| self.end_time.map(|end| (end - self.start_time) as f64))
     }
 }
 
@@ -553,6 +542,9 @@ mod tests {
         };
 
         assert!(!transition.is_error_transition());
-        assert_eq!(transition.transition_duration(), Some(Duration::from_millis(100)));
+        assert_eq!(
+            transition.transition_duration(),
+            Some(Duration::from_millis(100))
+        );
     }
 }

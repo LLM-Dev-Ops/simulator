@@ -1,13 +1,13 @@
 //! Chaos engineering implementation
 
+use parking_lot::RwLock;
 use rand::prelude::*;
+use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::time::Instant;
-use parking_lot::RwLock;
-use std::collections::HashMap;
 
-use crate::config::{ChaosConfig, ErrorInjectionRule, CircuitBreakerConfig};
-use crate::error::{SimulationError, InjectedErrorType};
+use crate::config::{ChaosConfig, CircuitBreakerConfig, ErrorInjectionRule};
+use crate::error::{InjectedErrorType, SimulationError};
 
 /// Chaos engineering engine for error injection and circuit breaking
 pub struct ChaosEngine {
@@ -82,20 +82,20 @@ impl ChaosEngine {
 
     /// Create an error from a rule
     fn create_error(&self, rule: &ErrorInjectionRule) -> SimulationError {
-        let message = rule.message.clone()
+        let message = rule
+            .message
+            .clone()
             .unwrap_or_else(|| format!("Injected {} error", rule.error_type));
 
-        let status_code = rule.status_code.unwrap_or_else(|| {
-            match rule.error_type {
-                InjectedErrorType::RateLimit => 429,
-                InjectedErrorType::Timeout => 504,
-                InjectedErrorType::ServerError => 500,
-                InjectedErrorType::BadGateway => 502,
-                InjectedErrorType::ServiceUnavailable => 503,
-                InjectedErrorType::AuthenticationError => 401,
-                InjectedErrorType::InvalidRequest => 400,
-                InjectedErrorType::ContextLengthExceeded => 400,
-            }
+        let status_code = rule.status_code.unwrap_or(match rule.error_type {
+            InjectedErrorType::RateLimit => 429,
+            InjectedErrorType::Timeout => 504,
+            InjectedErrorType::ServerError => 500,
+            InjectedErrorType::BadGateway => 502,
+            InjectedErrorType::ServiceUnavailable => 503,
+            InjectedErrorType::AuthenticationError => 401,
+            InjectedErrorType::InvalidRequest => 400,
+            InjectedErrorType::ContextLengthExceeded => 400,
         });
 
         SimulationError::Injected {
@@ -114,13 +114,13 @@ impl ChaosEngine {
         };
 
         let mut breakers = self.circuit_breakers.write();
-        let breaker = breakers.entry(key).or_insert_with(|| {
-            CircuitBreaker::new(self.config.circuit_breaker.clone())
-        });
+        let breaker = breakers
+            .entry(key)
+            .or_insert_with(|| CircuitBreaker::new(self.config.circuit_breaker.clone()));
 
         if breaker.is_open() {
             Some(SimulationError::ServiceUnavailable(
-                "Circuit breaker is open".to_string()
+                "Circuit breaker is open".to_string(),
             ))
         } else {
             None
@@ -189,9 +189,7 @@ impl ChaosEngine {
             "global".to_string()
         };
 
-        self.circuit_breakers.read()
-            .get(&key)
-            .map(|b| b.status())
+        self.circuit_breakers.read().get(&key).map(|b| b.status())
     }
 
     /// Reset all circuit breakers
@@ -338,25 +336,29 @@ mod tests {
         let engine = ChaosEngine::new(config);
 
         assert!(!engine.is_active());
-        assert!(engine.maybe_inject_error("gpt-4", "/chat/completions").is_none());
+        assert!(engine
+            .maybe_inject_error("gpt-4", "/chat/completions")
+            .is_none());
     }
 
     #[test]
     fn test_chaos_engine_enabled() {
-        let mut config = ChaosConfig::default();
-        config.enabled = true;
-        config.global_probability = 1.0;
-        config.errors = vec![ErrorInjectionRule {
-            name: "always_fail".to_string(),
-            error_type: InjectedErrorType::ServerError,
-            probability: 1.0,
-            models: vec![],
-            endpoints: vec![],
-            message: Some("Test error".to_string()),
-            status_code: Some(500),
-            delay_ms: None,
+        let config = ChaosConfig {
             enabled: true,
-        }];
+            global_probability: 1.0,
+            errors: vec![ErrorInjectionRule {
+                name: "always_fail".to_string(),
+                error_type: InjectedErrorType::ServerError,
+                probability: 1.0,
+                models: vec![],
+                endpoints: vec![],
+                message: Some("Test error".to_string()),
+                status_code: Some(500),
+                delay_ms: None,
+                enabled: true,
+            }],
+            ..Default::default()
+        };
 
         let engine = ChaosEngine::new(config);
         assert!(engine.is_active());
@@ -367,20 +369,22 @@ mod tests {
 
     #[test]
     fn test_model_filter() {
-        let mut config = ChaosConfig::default();
-        config.enabled = true;
-        config.global_probability = 1.0;
-        config.errors = vec![ErrorInjectionRule {
-            name: "gpt4_only".to_string(),
-            error_type: InjectedErrorType::ServerError,
-            probability: 1.0,
-            models: vec!["gpt-4".to_string()],
-            endpoints: vec![],
-            message: None,
-            status_code: None,
-            delay_ms: None,
+        let config = ChaosConfig {
             enabled: true,
-        }];
+            global_probability: 1.0,
+            errors: vec![ErrorInjectionRule {
+                name: "gpt4_only".to_string(),
+                error_type: InjectedErrorType::ServerError,
+                probability: 1.0,
+                models: vec!["gpt-4".to_string()],
+                endpoints: vec![],
+                message: None,
+                status_code: None,
+                delay_ms: None,
+                enabled: true,
+            }],
+            ..Default::default()
+        };
 
         let engine = ChaosEngine::new(config);
 

@@ -1,8 +1,8 @@
 //! Distribution sampling implementations
 
+use crate::config::LatencyDistribution;
 use rand::prelude::*;
 use rand_distr::{Distribution, Exp, LogNormal, Normal, Pareto, Uniform};
-use crate::config::LatencyDistribution;
 
 /// Sampler for latency distributions
 pub struct DistributionSampler {
@@ -36,7 +36,10 @@ impl DistributionSampler {
         match dist {
             LatencyDistribution::Fixed { value_ms } => *value_ms,
 
-            LatencyDistribution::Normal { mean_ms, std_dev_ms } => {
+            LatencyDistribution::Normal {
+                mean_ms,
+                std_dev_ms,
+            } => {
                 if *std_dev_ms <= 0.0 {
                     return *mean_ms;
                 }
@@ -44,7 +47,10 @@ impl DistributionSampler {
                 normal.sample(rng).max(0.0)
             }
 
-            LatencyDistribution::LogNormal { mean_ms, std_dev_ms } => {
+            LatencyDistribution::LogNormal {
+                mean_ms,
+                std_dev_ms,
+            } => {
                 if *std_dev_ms <= 0.0 || *mean_ms <= 0.0 {
                     return mean_ms.max(0.0);
                 }
@@ -87,7 +93,9 @@ impl DistributionSampler {
     /// Sample multiple values and return statistics
     pub fn sample_n(&self, dist: &LatencyDistribution, n: usize) -> Vec<f64> {
         let mut rng = self.rng.clone();
-        (0..n).map(|_| self.sample_with_rng(dist, &mut rng)).collect()
+        (0..n)
+            .map(|_| self.sample_with_rng(dist, &mut rng))
+            .collect()
     }
 }
 

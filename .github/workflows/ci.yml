@@ -28,24 +28,29 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.75.0
+          toolchain: 1.83.0
           components: rustfmt, clippy
           override: true
 
+      - name: Setup Protocol Buffers compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '25.1'
+
       - name: Cache cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo index
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
@@ -70,11 +75,13 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.75.0
+          # cargo-audit 0.22.2 needs Rust 1.88 and can audit an older-MSRV
+          # lockfile independently of the project's build toolchain.
+          toolchain: 1.88.0
           override: true
 
       - name: Install cargo-audit
-        run: cargo install cargo-audit
+        run: cargo install cargo-audit --version 0.22.2 --locked
 
       - name: Run security audit
         run: cargo audit
@@ -83,15 +90,41 @@ jobs:
         uses: EmbarkStudios/cargo-deny-action@v1
 
   # ----------------------------------------------------------------------------
+  # Node API Regression and Supply-chain Checks
+  # ----------------------------------------------------------------------------
+  node:
+    name: Node API Tests and Audit
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+
+      - name: Install locked dependencies
+        run: npm ci
+
+      - name: Run Node regression tests
+        run: npm test
+
+      - name: Audit production dependencies
+        run: npm audit --omit=dev
+
+  # ----------------------------------------------------------------------------
   # Build and Test
   # ----------------------------------------------------------------------------
   build:
     name: Build and Test
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        rust: [1.75.0]
+        rust: [1.83.0]
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -104,19 +137,19 @@ jobs:
           override: true
 
       - name: Cache cargo registry
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/registry
           key: ${{ runner.os }}-cargo-registry-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo index
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: ~/.cargo/git
           key: ${{ runner.os }}-cargo-git-${{ hashFiles('**/Cargo.lock') }}
 
       - name: Cache cargo build
-        uses: actions/cache@v3
+        uses: actions/cache@v4
         with:
           path: target
           key: ${{ runner.os }}-cargo-build-target-${{ hashFiles('**/Cargo.lock') }}
@@ -129,7 +162,7 @@ jobs:
 
       - name: Upload build artifacts
         if: matrix.os == 'ubuntu-latest'
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: llm-simulator-${{ matrix.os }}
           path: target/release/llm-simulator
@@ -149,11 +182,16 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.75.0
+          toolchain: 1.83.0
           override: true
 
+      - name: Setup Protocol Buffers compiler
+        uses: arduino/setup-protoc@v3
+        with:
+          version: '25.1'
+
       - name: Install tarpaulin
-        run: cargo install cargo-tarpaulin
+        run: cargo install cargo-tarpaulin --version 0.31.3 --locked
 
       - name: Generate coverage
         run: cargo tarpaulin --verbose --all-features --workspace --timeout 300 --out Xml
@@ -171,7 +209,7 @@ jobs:
   docker:
     name: Docker Build and Push
     runs-on: ubuntu-latest
-    needs: [lint, security, build]
+    needs: [lint, security, node, build]
     permissions:
       contents: read
       packages: write
@@ -238,7 +276,7 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.75.0
+          toolchain: 1.83.0
           override: true
 
       - name: Run integration tests
@@ -261,14 +299,14 @@ jobs:
         uses: actions-rs/toolchain@v1
         with:
           profile: minimal
-          toolchain: 1.75.0
+          toolchain: 1.83.0
           override: true
 
       - name: Run benchmarks
         run: cargo bench --no-fail-fast
 
       - name: Upload benchmark results
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: benchmark-results
           path: target/criterion
@@ -308,21 +346,26 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup kubectl
-        uses: azure/setup-kubectl@v3
-
-      - name: Validate Kubernetes manifests
-        run: |
-          kubectl apply --dry-run=client -f deploy/kubernetes/
-
       - name: Install kubeval
         run: |
-          wget https://github.com/instrumenta/kubeval/releases/latest/download/kubeval-linux-amd64.tar.gz
+          set -euo pipefail
+          wget https://github.com/instrumenta/kubeval/releases/download/v0.16.1/kubeval-linux-amd64.tar.gz
+          wget https://github.com/instrumenta/kubeval/releases/download/v0.16.1/checksums.txt
+          grep 'kubeval-linux-amd64.tar.gz$' checksums.txt | sha256sum -c -
           tar xf kubeval-linux-amd64.tar.gz
           sudo mv kubeval /usr/local/bin
 
       - name: Validate with kubeval
-        run: kubeval deploy/kubernetes/*.yaml
+        run: |
+          # Pin both the Kubernetes version and the immutable upstream schema tree.
+          # Custom resources are listed explicitly because their CRD schemas are
+          # not vendored in this repository; all 18 built-in resources are strict.
+          kubeval \
+            --strict \
+            --kubernetes-version 1.30.0 \
+            --schema-location https://raw.githubusercontent.com/yannh/kubernetes-json-schema/5f1fa4f7908afc9b6641c62d282a4a22437626e1 \
+            --skip-kinds VerticalPodAutoscaler,ScaledObject,ManagedCertificate,BackendConfig,VirtualService,Gateway \
+            deploy/kubernetes/*.yaml
 
   # ----------------------------------------------------------------------------
   # Notification
@@ -330,7 +373,7 @@ jobs:
   notify:
     name: Notify
     runs-on: ubuntu-latest
-    needs: [lint, security, build, docker, integration, helm, k8s]
+    needs: [lint, security, node, build, docker, integration, helm, k8s]
     if: always()
     steps:
       - name: Send Slack notification

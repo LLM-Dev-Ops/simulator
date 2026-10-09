@@ -32,21 +32,20 @@
 //! }
 //! ```
 
+mod builder;
 mod client;
 mod config;
-mod builder;
 mod error;
 mod streaming;
 
+pub use builder::*;
 pub use client::*;
 pub use config::*;
-pub use builder::*;
 pub use error::*;
 pub use streaming::*;
 
 // Re-export types for convenience
 pub use crate::types::{
-    ChatCompletionRequest, ChatCompletionResponse,
-    EmbeddingsRequest, EmbeddingsResponse,
-    Message, Role, Usage,
+    ChatCompletionRequest, ChatCompletionResponse, EmbeddingsRequest, EmbeddingsResponse, Message,
+    Role, Usage,
 };

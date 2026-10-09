@@ -2,8 +2,8 @@
 //!
 //! Fluent builder patterns for constructing API requests.
 
-use crate::types::*;
 use super::{Client, SdkError, SdkResult};
+use crate::types::*;
 
 /// Chat completion request builder
 ///
@@ -163,12 +163,14 @@ impl ChatBuilder {
 
     /// Build the request without sending
     pub fn build(self) -> SdkResult<ChatCompletionRequest> {
-        let model = self.model.ok_or_else(|| {
-            SdkError::InvalidRequest("Model is required".to_string())
-        })?;
+        let model = self
+            .model
+            .ok_or_else(|| SdkError::InvalidRequest("Model is required".to_string()))?;
 
         if self.messages.is_empty() {
-            return Err(SdkError::InvalidRequest("At least one message is required".to_string()));
+            return Err(SdkError::InvalidRequest(
+                "At least one message is required".to_string(),
+            ));
         }
 
         let stop = self.stop.map(|s| {
@@ -179,8 +181,8 @@ impl ChatBuilder {
             }
         });
 
-        Ok(ChatCompletionRequest::new(model, self.messages.clone())
-            .with_options(
+        Ok(
+            ChatCompletionRequest::new(model, self.messages.clone()).with_options(
                 self.temperature,
                 self.top_p,
                 self.max_tokens,
@@ -189,7 +191,8 @@ impl ChatBuilder {
                 self.presence_penalty,
                 stop,
                 self.user,
-            ))
+            ),
+        )
     }
 
     /// Send the request and get the response
@@ -262,12 +265,14 @@ impl EmbeddingsBuilder {
 
     /// Build the request without sending
     pub fn build(self) -> SdkResult<EmbeddingsRequest> {
-        let model = self.model.ok_or_else(|| {
-            SdkError::InvalidRequest("Model is required".to_string())
-        })?;
+        let model = self
+            .model
+            .ok_or_else(|| SdkError::InvalidRequest("Model is required".to_string()))?;
 
         if self.input.is_empty() {
-            return Err(SdkError::InvalidRequest("At least one input is required".to_string()));
+            return Err(SdkError::InvalidRequest(
+                "At least one input is required".to_string(),
+            ));
         }
 
         let input = if self.input.len() == 1 {
@@ -306,7 +311,9 @@ impl ChatResponse {
 
     /// Get the response content
     pub fn content(&self) -> &str {
-        self.inner.choices.first()
+        self.inner
+            .choices
+            .first()
             .and_then(|c| c.message.content.as_deref())
             .unwrap_or("")
     }
@@ -348,17 +355,29 @@ impl ChatResponse {
 
     /// Get input tokens used
     pub fn input_tokens(&self) -> u32 {
-        self.inner.usage.as_ref().map(|u| u.prompt_tokens).unwrap_or(0)
+        self.inner
+            .usage
+            .as_ref()
+            .map(|u| u.prompt_tokens)
+            .unwrap_or(0)
     }
 
     /// Get output tokens used
     pub fn output_tokens(&self) -> u32 {
-        self.inner.usage.as_ref().map(|u| u.completion_tokens).unwrap_or(0)
+        self.inner
+            .usage
+            .as_ref()
+            .map(|u| u.completion_tokens)
+            .unwrap_or(0)
     }
 
     /// Get total tokens used
     pub fn total_tokens(&self) -> u32 {
-        self.inner.usage.as_ref().map(|u| u.total_tokens).unwrap_or(0)
+        self.inner
+            .usage
+            .as_ref()
+            .map(|u| u.total_tokens)
+            .unwrap_or(0)
     }
 
     /// Check if the response was truncated
@@ -394,7 +413,11 @@ impl EmbeddingsResult {
 
     /// Get all embeddings
     pub fn embeddings(&self) -> Vec<&[f32]> {
-        self.inner.data.iter().map(|e| e.embedding.as_slice()).collect()
+        self.inner
+            .data
+            .iter()
+            .map(|e| e.embedding.as_slice())
+            .collect()
     }
 
     /// Get the number of embeddings
@@ -404,7 +427,9 @@ impl EmbeddingsResult {
 
     /// Get the embedding dimensions
     pub fn dimensions(&self) -> usize {
-        self.inner.data.first()
+        self.inner
+            .data
+            .first()
             .map(|e| e.embedding.len())
             .unwrap_or(0)
     }
@@ -465,16 +490,11 @@ mod tests {
         assert!(builder.model.is_none());
 
         // Missing messages
-        let result = client.chat()
-            .model("gpt-4")
-            .build();
+        let result = client.chat().model("gpt-4").build();
         assert!(result.is_err());
 
         // Valid request
-        let result = client.chat()
-            .model("gpt-4")
-            .message("Hello")
-            .build();
+        let result = client.chat().model("gpt-4").message("Hello").build();
         assert!(result.is_ok());
     }
 
@@ -483,13 +503,12 @@ mod tests {
         let client = Client::new("http://localhost:8080").unwrap();
 
         // Missing input
-        let result = client.embeddings()
-            .model("text-embedding-ada-002")
-            .build();
+        let result = client.embeddings().model("text-embedding-ada-002").build();
         assert!(result.is_err());
 
         // Valid request
-        let result = client.embeddings()
+        let result = client
+            .embeddings()
             .model("text-embedding-ada-002")
             .input("Hello, world!")
             .build();

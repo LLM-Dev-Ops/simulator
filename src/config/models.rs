@@ -1,7 +1,7 @@
 //! Model configuration definitions
 
-use serde::{Deserialize, Serialize};
 use crate::types::Provider;
+use serde::{Deserialize, Serialize};
 
 /// Configuration for a specific model
 #[derive(Debug, Clone, Serialize, Deserialize)]

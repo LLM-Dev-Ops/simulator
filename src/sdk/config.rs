@@ -236,7 +236,10 @@ mod tests {
     #[test]
     fn test_provider_from_str() {
         assert_eq!("openai".parse::<Provider>().unwrap(), Provider::OpenAI);
-        assert_eq!("anthropic".parse::<Provider>().unwrap(), Provider::Anthropic);
+        assert_eq!(
+            "anthropic".parse::<Provider>().unwrap(),
+            Provider::Anthropic
+        );
         assert_eq!("claude".parse::<Provider>().unwrap(), Provider::Anthropic);
         assert_eq!("google".parse::<Provider>().unwrap(), Provider::Google);
         assert_eq!("gemini".parse::<Provider>().unwrap(), Provider::Google);

@@ -8,7 +8,10 @@ async fn test_anthropic_messages_basic() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/messages", anthropic_request("claude-3-5-sonnet-20241022", "Hello!", 100))
+        .post(
+            "/v1/messages",
+            anthropic_request("claude-3-5-sonnet-20241022", "Hello!", 100),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -40,7 +43,7 @@ async fn test_anthropic_messages_with_system() {
     assert_eq!(response.status().as_u16(), 200);
 
     let body: serde_json::Value = response.json().await.unwrap();
-    assert!(body["content"].as_array().unwrap().len() > 0);
+    assert!(!body["content"].as_array().unwrap().is_empty());
 }
 
 #[tokio::test]
@@ -48,7 +51,10 @@ async fn test_anthropic_messages_claude_opus() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/messages", anthropic_request("claude-3-opus-20240229", "Test", 50))
+        .post(
+            "/v1/messages",
+            anthropic_request("claude-3-opus-20240229", "Test", 50),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -62,7 +68,10 @@ async fn test_anthropic_messages_claude_haiku() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/messages", anthropic_request("claude-3-haiku-20240307", "Quick test", 50))
+        .post(
+            "/v1/messages",
+            anthropic_request("claude-3-haiku-20240307", "Quick test", 50),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -77,7 +86,10 @@ async fn test_anthropic_messages_without_version_prefix() {
 
     // /messages endpoint without /v1 prefix
     let response = server
-        .post("/messages", anthropic_request("claude-3-5-sonnet-20241022", "Hello!", 100))
+        .post(
+            "/messages",
+            anthropic_request("claude-3-5-sonnet-20241022", "Hello!", 100),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -109,7 +121,10 @@ async fn test_anthropic_usage_fields() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/messages", anthropic_request("claude-3-5-sonnet-20241022", "Test usage", 100))
+        .post(
+            "/v1/messages",
+            anthropic_request("claude-3-5-sonnet-20241022", "Test usage", 100),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -126,7 +141,10 @@ async fn test_anthropic_stop_reason() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/messages", anthropic_request("claude-3-5-sonnet-20241022", "Hello", 100))
+        .post(
+            "/v1/messages",
+            anthropic_request("claude-3-5-sonnet-20241022", "Hello", 100),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);

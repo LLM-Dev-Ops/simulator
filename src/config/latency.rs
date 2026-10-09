@@ -1,9 +1,9 @@
 //! Latency simulation configuration
 
+use crate::error::{SimulationError, SimulatorResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use crate::error::{SimulationError, SimulatorResult};
 
 /// Latency simulation configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -24,53 +24,74 @@ impl Default for LatencyConfig {
         let mut profiles = HashMap::new();
 
         // Fast profile (local/edge)
-        profiles.insert("fast".to_string(), LatencyProfile {
-            ttft: LatencyDistribution::normal(50.0, 10.0),
-            itl: LatencyDistribution::normal(15.0, 3.0),
-            overhead: Duration::from_millis(5),
-        });
+        profiles.insert(
+            "fast".to_string(),
+            LatencyProfile {
+                ttft: LatencyDistribution::normal(50.0, 10.0),
+                itl: LatencyDistribution::normal(15.0, 3.0),
+                overhead: Duration::from_millis(5),
+            },
+        );
 
         // Standard profile (typical cloud)
-        profiles.insert("standard".to_string(), LatencyProfile {
-            ttft: LatencyDistribution::normal(200.0, 50.0),
-            itl: LatencyDistribution::normal(30.0, 8.0),
-            overhead: Duration::from_millis(10),
-        });
+        profiles.insert(
+            "standard".to_string(),
+            LatencyProfile {
+                ttft: LatencyDistribution::normal(200.0, 50.0),
+                itl: LatencyDistribution::normal(30.0, 8.0),
+                overhead: Duration::from_millis(10),
+            },
+        );
 
         // Slow profile (congested/distant)
-        profiles.insert("slow".to_string(), LatencyProfile {
-            ttft: LatencyDistribution::normal(500.0, 100.0),
-            itl: LatencyDistribution::normal(60.0, 15.0),
-            overhead: Duration::from_millis(20),
-        });
+        profiles.insert(
+            "slow".to_string(),
+            LatencyProfile {
+                ttft: LatencyDistribution::normal(500.0, 100.0),
+                itl: LatencyDistribution::normal(60.0, 15.0),
+                overhead: Duration::from_millis(20),
+            },
+        );
 
         // GPT-4 realistic profile
-        profiles.insert("gpt4".to_string(), LatencyProfile {
-            ttft: LatencyDistribution::log_normal(300.0, 150.0),
-            itl: LatencyDistribution::log_normal(40.0, 15.0),
-            overhead: Duration::from_millis(15),
-        });
+        profiles.insert(
+            "gpt4".to_string(),
+            LatencyProfile {
+                ttft: LatencyDistribution::log_normal(300.0, 150.0),
+                itl: LatencyDistribution::log_normal(40.0, 15.0),
+                overhead: Duration::from_millis(15),
+            },
+        );
 
         // Claude realistic profile
-        profiles.insert("claude".to_string(), LatencyProfile {
-            ttft: LatencyDistribution::log_normal(250.0, 100.0),
-            itl: LatencyDistribution::log_normal(35.0, 12.0),
-            overhead: Duration::from_millis(12),
-        });
+        profiles.insert(
+            "claude".to_string(),
+            LatencyProfile {
+                ttft: LatencyDistribution::log_normal(250.0, 100.0),
+                itl: LatencyDistribution::log_normal(35.0, 12.0),
+                overhead: Duration::from_millis(12),
+            },
+        );
 
         // Gemini realistic profile
-        profiles.insert("gemini".to_string(), LatencyProfile {
-            ttft: LatencyDistribution::log_normal(200.0, 80.0),
-            itl: LatencyDistribution::log_normal(25.0, 10.0),
-            overhead: Duration::from_millis(10),
-        });
+        profiles.insert(
+            "gemini".to_string(),
+            LatencyProfile {
+                ttft: LatencyDistribution::log_normal(200.0, 80.0),
+                itl: LatencyDistribution::log_normal(25.0, 10.0),
+                overhead: Duration::from_millis(10),
+            },
+        );
 
         // Zero latency (for testing)
-        profiles.insert("instant".to_string(), LatencyProfile {
-            ttft: LatencyDistribution::fixed(0.0),
-            itl: LatencyDistribution::fixed(0.0),
-            overhead: Duration::from_millis(0),
-        });
+        profiles.insert(
+            "instant".to_string(),
+            LatencyProfile {
+                ttft: LatencyDistribution::fixed(0.0),
+                itl: LatencyDistribution::fixed(0.0),
+                overhead: Duration::from_millis(0),
+            },
+        );
 
         Self {
             enabled: true,
@@ -96,10 +117,12 @@ impl LatencyConfig {
             });
         }
         for (name, profile) in &self.profiles {
-            profile.validate().map_err(|e| SimulationError::Validation {
-                message: format!("Invalid latency profile '{}': {}", name, e),
-                param: Some(format!("latency.profiles.{}", name)),
-            })?;
+            profile
+                .validate()
+                .map_err(|e| SimulationError::Validation {
+                    message: format!("Invalid latency profile '{}': {}", name, e),
+                    param: Some(format!("latency.profiles.{}", name)),
+                })?;
         }
         Ok(())
     }
@@ -111,7 +134,8 @@ impl LatencyConfig {
 
     /// Get the default latency profile
     pub fn default_profile(&self) -> &LatencyProfile {
-        self.profiles.get(&self.default_profile)
+        self.profiles
+            .get(&self.default_profile)
             .expect("Default profile should always exist")
     }
 }
@@ -160,11 +184,17 @@ impl LatencyDistribution {
     }
 
     pub fn normal(mean_ms: f64, std_dev_ms: f64) -> Self {
-        Self::Normal { mean_ms, std_dev_ms }
+        Self::Normal {
+            mean_ms,
+            std_dev_ms,
+        }
     }
 
     pub fn log_normal(mean_ms: f64, std_dev_ms: f64) -> Self {
-        Self::LogNormal { mean_ms, std_dev_ms }
+        Self::LogNormal {
+            mean_ms,
+            std_dev_ms,
+        }
     }
 
     pub fn uniform(min_ms: f64, max_ms: f64) -> Self {
@@ -211,9 +241,7 @@ impl LatencyDistribution {
             Self::LogNormal { mean_ms, .. } => *mean_ms,
             Self::Uniform { min_ms, max_ms } => (min_ms + max_ms) / 2.0,
             Self::Exponential { mean_ms } => *mean_ms,
-            Self::Pareto { scale_ms, shape } if *shape > 1.0 => {
-                (shape * scale_ms) / (shape - 1.0)
-            }
+            Self::Pareto { scale_ms, shape } if *shape > 1.0 => (shape * scale_ms) / (shape - 1.0),
             Self::Pareto { .. } => f64::INFINITY,
         }
     }

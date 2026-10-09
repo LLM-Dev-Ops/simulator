@@ -3,13 +3,12 @@
 //! Implements the canonical BenchTarget trait and provides adapters
 //! for all simulator benchmark targets.
 
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
-use crate::config::{LatencyConfig, LatencyDistribution, GenerationConfig, GenerationStrategy};
-use crate::engine::{ResponseGenerator, SimulationEngine};
+use crate::config::{GenerationConfig, GenerationStrategy, LatencyConfig, LatencyDistribution};
+use crate::engine::ResponseGenerator;
 use crate::latency::{DistributionSampler, LatencySimulator, LatencyStats};
 use crate::types::Message;
-use crate::SimulatorConfig;
 
 use super::{BenchmarkResult, BenchmarkResultBuilder};
 
@@ -68,6 +67,12 @@ pub struct LatencySamplingBenchmark {
     seed: u64,
 }
 
+impl Default for LatencySamplingBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LatencySamplingBenchmark {
     pub fn new() -> Self {
         Self {
@@ -116,6 +121,12 @@ impl BenchTarget for LatencySamplingBenchmark {
 pub struct TtftSamplingBenchmark {
     iterations: usize,
     seed: u64,
+}
+
+impl Default for TtftSamplingBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TtftSamplingBenchmark {
@@ -178,6 +189,12 @@ pub struct ItlSamplingBenchmark {
     seed: u64,
 }
 
+impl Default for ItlSamplingBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ItlSamplingBenchmark {
     pub fn new() -> Self {
         Self {
@@ -227,6 +244,12 @@ pub struct ScheduleGenerationBenchmark {
     iterations: usize,
     token_counts: Vec<usize>,
     seed: u64,
+}
+
+impl Default for ScheduleGenerationBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ScheduleGenerationBenchmark {
@@ -290,6 +313,12 @@ impl BenchTarget for ScheduleGenerationBenchmark {
 pub struct DistributionSamplingBenchmark {
     samples_per_dist: usize,
     seed: u64,
+}
+
+impl Default for DistributionSamplingBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl DistributionSamplingBenchmark {
@@ -393,6 +422,12 @@ pub struct TokenThroughputBenchmark {
     seed: u64,
 }
 
+impl Default for TokenThroughputBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TokenThroughputBenchmark {
     pub fn new() -> Self {
         Self {
@@ -447,7 +482,10 @@ impl BenchTarget for TokenThroughputBenchmark {
         let elapsed = start.elapsed();
 
         BenchmarkResultBuilder::new(self.id())
-            .metric("total_iterations", self.iterations * self.token_counts.len())
+            .metric(
+                "total_iterations",
+                self.iterations * self.token_counts.len(),
+            )
             .metric("total_tokens", total_tokens)
             .duration_ms("total_duration", elapsed)
             .throughput(total_tokens as f64 / elapsed.as_secs_f64())
@@ -460,6 +498,12 @@ impl BenchTarget for TokenThroughputBenchmark {
 pub struct ResponseGenerationBenchmark {
     iterations: usize,
     seed: u64,
+}
+
+impl Default for ResponseGenerationBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ResponseGenerationBenchmark {
@@ -539,6 +583,12 @@ pub struct TokenizationBenchmark {
     seed: u64,
 }
 
+impl Default for TokenizationBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl TokenizationBenchmark {
     pub fn new() -> Self {
         Self {
@@ -586,7 +636,10 @@ impl BenchTarget for TokenizationBenchmark {
             .metric("total_chars", total_chars)
             .duration_ms("total_duration", elapsed)
             .throughput(total_chars as f64 / elapsed.as_secs_f64())
-            .metric("avg_chars_per_token", total_chars as f64 / total_tokens as f64)
+            .metric(
+                "avg_chars_per_token",
+                total_chars as f64 / total_tokens as f64,
+            )
             .build()
     }
 }
@@ -599,6 +652,12 @@ impl BenchTarget for TokenizationBenchmark {
 pub struct ConcurrentRequestBenchmark {
     total_requests: usize,
     seed: u64,
+}
+
+impl Default for ConcurrentRequestBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl ConcurrentRequestBenchmark {
@@ -660,6 +719,12 @@ pub struct LargeContextBenchmark {
     seed: u64,
 }
 
+impl Default for LargeContextBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl LargeContextBenchmark {
     pub fn new() -> Self {
         Self {
@@ -716,9 +781,15 @@ impl BenchTarget for LargeContextBenchmark {
         let elapsed = start.elapsed();
 
         BenchmarkResultBuilder::new(self.id())
-            .metric("total_iterations", self.iterations * self.context_sizes.len())
+            .metric(
+                "total_iterations",
+                self.iterations * self.context_sizes.len(),
+            )
             .duration_ms("total_duration", elapsed)
-            .metric("context_results", serde_json::Value::Object(context_results))
+            .metric(
+                "context_results",
+                serde_json::Value::Object(context_results),
+            )
             .build()
     }
 }
@@ -732,6 +803,12 @@ pub struct EmbeddingGenerationBenchmark {
     iterations: usize,
     dimensions: usize,
     seed: u64,
+}
+
+impl Default for EmbeddingGenerationBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl EmbeddingGenerationBenchmark {
@@ -780,7 +857,10 @@ impl BenchTarget for EmbeddingGenerationBenchmark {
             .metric("total_elements", total_elements)
             .duration_ms("total_duration", elapsed)
             .throughput(self.iterations as f64 / elapsed.as_secs_f64())
-            .metric("elements_per_sec", total_elements as f64 / elapsed.as_secs_f64())
+            .metric(
+                "elements_per_sec",
+                total_elements as f64 / elapsed.as_secs_f64(),
+            )
             .build()
     }
 }
@@ -791,6 +871,12 @@ pub struct BatchEmbeddingBenchmark {
     iterations_per_batch: usize,
     dimensions: usize,
     seed: u64,
+}
+
+impl Default for BatchEmbeddingBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl BatchEmbeddingBenchmark {
@@ -866,6 +952,12 @@ pub struct ProfileLookupBenchmark {
     iterations: usize,
 }
 
+impl Default for ProfileLookupBenchmark {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl ProfileLookupBenchmark {
     pub fn new() -> Self {
         Self {
@@ -886,7 +978,9 @@ impl BenchTarget for ProfileLookupBenchmark {
     fn run(&self) -> BenchmarkResult {
         let config = LatencyConfig::default();
         let simulator = LatencySimulator::new(config);
-        let profiles = ["fast", "standard", "slow", "gpt4", "claude", "gemini", "instant"];
+        let profiles = [
+            "fast", "standard", "slow", "gpt4", "claude", "gemini", "instant",
+        ];
         let nonexistent = "nonexistent_profile";
 
         let start = Instant::now();
@@ -914,8 +1008,14 @@ impl BenchTarget for ProfileLookupBenchmark {
             .metric("hit_lookups", hit_lookups)
             .metric("miss_lookups", self.iterations)
             .duration_ms("total_duration", elapsed)
-            .metric("hit_ops_per_sec", hit_lookups as f64 / hit_elapsed.as_secs_f64())
-            .metric("miss_ops_per_sec", self.iterations as f64 / miss_elapsed.as_secs_f64())
+            .metric(
+                "hit_ops_per_sec",
+                hit_lookups as f64 / hit_elapsed.as_secs_f64(),
+            )
+            .metric(
+                "miss_ops_per_sec",
+                self.iterations as f64 / miss_elapsed.as_secs_f64(),
+            )
             .build()
     }
 }

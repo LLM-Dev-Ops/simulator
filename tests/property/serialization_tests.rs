@@ -12,8 +12,7 @@ fn model_strategy() -> impl Strategy<Value = String> {
 
 // Strategy for generating valid message content
 fn content_strategy() -> impl Strategy<Value = String> {
-    prop::string::string_regex("[a-zA-Z0-9 ,.!?]{1,100}")
-        .unwrap()
+    prop::string::string_regex("[a-zA-Z0-9 ,.!?]{1,100}").unwrap()
 }
 
 proptest! {

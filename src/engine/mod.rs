@@ -6,27 +6,29 @@
 //! - Injecting errors for chaos testing
 //! - Managing deterministic behavior with seeds
 
-mod generator;
 mod chaos;
+mod generator;
 mod state;
 
-pub use generator::*;
 pub use chaos::*;
+pub use generator::*;
 pub use state::*;
 
-use std::sync::Arc;
-use std::sync::atomic::{AtomicU64, Ordering};
-use std::time::{Duration, Instant};
 use parking_lot::RwLock;
+use std::sync::atomic::{AtomicU64, Ordering};
+use std::sync::Arc;
+use std::time::{Duration, Instant};
 use tracing::{debug, info, warn};
 use uuid::Uuid;
 
-use crate::adapters::ruvvector::{OptionalRuvVectorAdapter, SimulateRequest, SimulateInput, SimulateMessage, SimulateParameters};
 use crate::adapters::observatory::SpanStatus;
-use crate::telemetry::tracing_ext::{FeuSpanCollector, ExecutionTrace, SpanArtifact};
-use crate::config::{SimulatorConfig, ModelConfig};
+use crate::adapters::ruvvector::{
+    OptionalRuvVectorAdapter, SimulateInput, SimulateMessage, SimulateParameters, SimulateRequest,
+};
+use crate::config::{ModelConfig, SimulatorConfig};
 use crate::error::{SimulationError, SimulatorResult};
-use crate::latency::{LatencySimulator, LatencySchedule};
+use crate::latency::{LatencySchedule, LatencySimulator};
+use crate::telemetry::tracing_ext::{ExecutionTrace, FeuSpanCollector, SpanArtifact};
 use crate::types::*;
 
 /// The main simulation engine
@@ -118,7 +120,10 @@ impl SimulationEngine {
         self.state.increment_requests();
 
         // Check for chaos injection
-        if let Some(error) = self.chaos_engine.maybe_inject_error(&request.model, "/chat/completions") {
+        if let Some(error) = self
+            .chaos_engine
+            .maybe_inject_error(&request.model, "/chat/completions")
+        {
             self.state.increment_errors();
             return Err(error);
         }
@@ -127,10 +132,12 @@ impl SimulationEngine {
         let model_config = self.get_model_config(&request.model)?;
 
         // Validate request
-        request.validate().map_err(|e| SimulationError::Validation {
-            message: e,
-            param: None,
-        })?;
+        request
+            .validate()
+            .map_err(|e| SimulationError::Validation {
+                message: e,
+                param: None,
+            })?;
 
         // Check context length
         let input_tokens = request.estimate_input_tokens();
@@ -142,16 +149,23 @@ impl SimulationEngine {
         }
 
         // Generate response
-        let id = format!("chatcmpl-{}", Uuid::new_v4().to_string().replace("-", "")[..24].to_string());
-        let max_tokens = request.effective_max_tokens().min(model_config.max_output_tokens as u32);
+        let id = format!(
+            "chatcmpl-{}",
+            &Uuid::new_v4().to_string().replace("-", "")[..24]
+        );
+        let max_tokens = request
+            .effective_max_tokens()
+            .min(model_config.max_output_tokens as u32);
 
         // Try RuvVector service first if configured, then fall back to local generator
-        let (content, output_tokens) = self.generate_content_with_fallback(
-            &request.messages,
-            &request.model,
-            max_tokens,
-            &model_config,
-        ).await?;
+        let (content, output_tokens) = self
+            .generate_content_with_fallback(
+                &request.messages,
+                &request.model,
+                max_tokens,
+                &model_config,
+            )
+            .await?;
 
         let usage = Usage::new(input_tokens as u32, output_tokens);
 
@@ -165,7 +179,8 @@ impl SimulationEngine {
         let response = ChatCompletionResponse::simple(id, request.model.clone(), content, usage);
 
         self.state.record_latency(start.elapsed());
-        self.state.add_tokens(input_tokens as u64, output_tokens as u64);
+        self.state
+            .add_tokens(input_tokens as u64, output_tokens as u64);
 
         Ok(response)
     }
@@ -178,7 +193,10 @@ impl SimulationEngine {
         self.state.increment_requests();
 
         // Check for chaos injection
-        if let Some(error) = self.chaos_engine.maybe_inject_error(&request.model, "/chat/completions") {
+        if let Some(error) = self
+            .chaos_engine
+            .maybe_inject_error(&request.model, "/chat/completions")
+        {
             self.state.increment_errors();
             return Err(error);
         }
@@ -194,10 +212,12 @@ impl SimulationEngine {
         }
 
         // Validate request
-        request.validate().map_err(|e| SimulationError::Validation {
-            message: e,
-            param: None,
-        })?;
+        request
+            .validate()
+            .map_err(|e| SimulationError::Validation {
+                message: e,
+                param: None,
+            })?;
 
         // Check context length
         let input_tokens = request.estimate_input_tokens();
@@ -209,16 +229,23 @@ impl SimulationEngine {
         }
 
         // Generate response tokens
-        let id = format!("chatcmpl-{}", Uuid::new_v4().to_string().replace("-", "")[..24].to_string());
-        let max_tokens = request.effective_max_tokens().min(model_config.max_output_tokens as u32);
+        let id = format!(
+            "chatcmpl-{}",
+            &Uuid::new_v4().to_string().replace("-", "")[..24]
+        );
+        let max_tokens = request
+            .effective_max_tokens()
+            .min(model_config.max_output_tokens as u32);
 
         // Try RuvVector service first if configured, then fall back to local generator
-        let (content, output_tokens) = self.generate_content_with_fallback(
-            &request.messages,
-            &request.model,
-            max_tokens,
-            &model_config,
-        ).await?;
+        let (content, output_tokens) = self
+            .generate_content_with_fallback(
+                &request.messages,
+                &request.model,
+                max_tokens,
+                &model_config,
+            )
+            .await?;
 
         // Tokenize for streaming
         let tokens = self.generator.tokenize(&content);
@@ -228,7 +255,8 @@ impl SimulationEngine {
         let schedule = self.latency_sim.generate_schedule(tokens.len(), profile);
 
         let usage = Usage::new(input_tokens as u32, output_tokens);
-        self.state.add_tokens(input_tokens as u64, output_tokens as u64);
+        self.state
+            .add_tokens(input_tokens as u64, output_tokens as u64);
 
         Ok(StreamingResponse {
             id,
@@ -240,12 +268,18 @@ impl SimulationEngine {
     }
 
     /// Generate embeddings
-    pub async fn embeddings(&self, request: &EmbeddingsRequest) -> SimulatorResult<EmbeddingsResponse> {
+    pub async fn embeddings(
+        &self,
+        request: &EmbeddingsRequest,
+    ) -> SimulatorResult<EmbeddingsResponse> {
         let start = Instant::now();
         self.state.increment_requests();
 
         // Check for chaos injection
-        if let Some(error) = self.chaos_engine.maybe_inject_error(&request.model, "/embeddings") {
+        if let Some(error) = self
+            .chaos_engine
+            .maybe_inject_error(&request.model, "/embeddings")
+        {
             self.state.increment_errors();
             return Err(error);
         }
@@ -261,7 +295,8 @@ impl SimulationEngine {
         }
 
         let inputs = request.input.to_vec();
-        let dimensions = request.dimensions
+        let dimensions = request
+            .dimensions
             .map(|d| d as usize)
             .or(model_config.embedding_dimensions)
             .unwrap_or(1536);
@@ -291,7 +326,9 @@ impl SimulationEngine {
     /// List available models
     pub fn list_models(&self) -> ModelsResponse {
         let config = self.config.read();
-        let models: Vec<ModelObject> = config.models.iter()
+        let models: Vec<ModelObject> = config
+            .models
+            .iter()
             .map(|(id, mc)| ModelObject::new(id, mc.provider.to_string()))
             .collect();
         ModelsResponse::new(models)
@@ -300,14 +337,18 @@ impl SimulationEngine {
     /// Get a specific model
     pub fn get_model(&self, model_id: &str) -> Option<ModelObject> {
         let config = self.config.read();
-        config.models.get(model_id)
+        config
+            .models
+            .get(model_id)
             .map(|mc| ModelObject::new(model_id, mc.provider.to_string()))
     }
 
     /// Get model configuration
     fn get_model_config(&self, model_id: &str) -> SimulatorResult<ModelConfig> {
         let config = self.config.read();
-        config.models.get(model_id)
+        config
+            .models
+            .get(model_id)
             .cloned()
             .ok_or_else(|| SimulationError::ModelNotFound(model_id.to_string()))
     }
@@ -362,7 +403,7 @@ impl SimulationEngine {
         // Check if RuvVector is configured
         if !self.ruvvector.is_configured() {
             return Err(SimulationError::ServiceUnavailable(
-                "RuvVector is required but RUVVECTOR_SERVICE_URL is not configured".to_string()
+                "RuvVector is required but RUVVECTOR_SERVICE_URL is not configured".to_string(),
             ));
         }
 
@@ -376,11 +417,10 @@ impl SimulationEngine {
                 );
                 Ok(())
             }
-            Err(e) => {
-                Err(SimulationError::ServiceUnavailable(
-                    format!("RuvVector is required but health check failed: {}", e)
-                ))
-            }
+            Err(e) => Err(SimulationError::ServiceUnavailable(format!(
+                "RuvVector is required but health check failed: {}",
+                e
+            ))),
         }
     }
 
@@ -401,7 +441,8 @@ impl SimulationEngine {
     ) -> SimulatorResult<(ChatCompletionResponse, ExecutionTrace)> {
         let mut collector = FeuSpanCollector::new(None);
 
-        let engine_span_id = collector.begin_agent_span("engine")
+        let engine_span_id = collector
+            .begin_agent_span("engine")
             .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
 
         let result = self.chat_completion(request).await;
@@ -425,7 +466,8 @@ impl SimulationEngine {
             }
         }
 
-        let trace = collector.finalize()
+        let trace = collector
+            .finalize()
             .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
 
         result.map(|response| (response, trace))
@@ -439,7 +481,8 @@ impl SimulationEngine {
     ) -> SimulatorResult<(EmbeddingsResponse, ExecutionTrace)> {
         let mut collector = FeuSpanCollector::new(None);
 
-        let engine_span_id = collector.begin_agent_span("engine")
+        let engine_span_id = collector
+            .begin_agent_span("engine")
             .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
 
         let result = self.embeddings(request).await;
@@ -462,7 +505,8 @@ impl SimulationEngine {
             }
         }
 
-        let trace = collector.finalize()
+        let trace = collector
+            .finalize()
             .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
 
         result.map(|response| (response, trace))
@@ -476,7 +520,8 @@ impl SimulationEngine {
     ) -> SimulatorResult<(StreamingResponse, ExecutionTrace)> {
         let mut collector = FeuSpanCollector::new(None);
 
-        let engine_span_id = collector.begin_agent_span("engine")
+        let engine_span_id = collector
+            .begin_agent_span("engine")
             .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
 
         let result = self.chat_completion_stream(request).await;
@@ -500,7 +545,8 @@ impl SimulationEngine {
             }
         }
 
-        let trace = collector.finalize()
+        let trace = collector
+            .finalize()
             .map_err(|e| SimulationError::FeuValidation(e.to_string()))?;
 
         result.map(|response| (response, trace))
@@ -534,26 +580,29 @@ impl SimulationEngine {
         // Check if RuvVector is required but not available
         if require_ruvvector && !self.ruvvector.is_configured() {
             return Err(SimulationError::ServiceUnavailable(
-                "RuvVector is required but not configured".to_string()
+                "RuvVector is required but not configured".to_string(),
             ));
         }
 
         // Try RuvVector service if available
         if self.ruvvector.is_configured() {
             // Convert messages to RuvVector format
-            let simulate_messages: Vec<SimulateMessage> = messages.iter().map(|m| {
-                let role_str = match m.role {
-                    Role::System => "system",
-                    Role::User => "user",
-                    Role::Assistant => "assistant",
-                    Role::Tool => "tool",
-                    Role::Function => "function",
-                };
-                SimulateMessage {
-                    role: role_str.to_string(),
-                    content: m.text(),
-                }
-            }).collect();
+            let simulate_messages: Vec<SimulateMessage> = messages
+                .iter()
+                .map(|m| {
+                    let role_str = match m.role {
+                        Role::System => "system",
+                        Role::User => "user",
+                        Role::Assistant => "assistant",
+                        Role::Tool => "tool",
+                        Role::Function => "function",
+                    };
+                    SimulateMessage {
+                        role: role_str.to_string(),
+                        content: m.text(),
+                    }
+                })
+                .collect();
 
             let request = SimulateRequest {
                 model: model.to_string(),
@@ -586,9 +635,10 @@ impl SimulationEngine {
 
                         // Check if we can fall back to mocks
                         if !fallback_to_mock || !allow_mocks {
-                            return Err(SimulationError::ServiceUnavailable(
-                                format!("RuvVector service failed and mocks not allowed: {}", e)
-                            ));
+                            return Err(SimulationError::ServiceUnavailable(format!(
+                                "RuvVector service failed and mocks not allowed: {}",
+                                e
+                            )));
                         }
                         // Fall through to local generator
                     }
@@ -597,7 +647,7 @@ impl SimulationEngine {
                 // RuvVector not configured, check if we can use mocks
                 if !allow_mocks {
                     return Err(SimulationError::ServiceUnavailable(
-                        "RuvVector not configured and mocks not allowed".to_string()
+                        "RuvVector not configured and mocks not allowed".to_string(),
                     ));
                 }
             }
@@ -605,7 +655,8 @@ impl SimulationEngine {
             // RuvVector not configured at all
             if !allow_mocks {
                 return Err(SimulationError::ServiceUnavailable(
-                    "No data source available: RuvVector not configured and mocks not allowed".to_string()
+                    "No data source available: RuvVector not configured and mocks not allowed"
+                        .to_string(),
                 ));
             }
         }
@@ -616,11 +667,9 @@ impl SimulationEngine {
         // Increment mock activation counter
         self.mock_activation_count.fetch_add(1, Ordering::Relaxed);
 
-        Ok(self.generator.generate_response(
-            messages,
-            max_tokens,
-            &model_config.generation,
-        ))
+        Ok(self
+            .generator
+            .generate_response(messages, max_tokens, &model_config.generation))
     }
 }
 
@@ -661,17 +710,19 @@ impl StreamingResponse {
                 token.clone(),
                 0,
             );
-            let delay = self.schedule.token_delays.get(i).copied().unwrap_or(Duration::ZERO);
+            let delay = self
+                .schedule
+                .token_delays
+                .get(i)
+                .copied()
+                .unwrap_or(Duration::ZERO);
             chunks.push((delay, chunk));
         }
 
         // Final chunk with finish reason
-        let final_chunk = ChatCompletionChunk::finish(
-            self.id.clone(),
-            self.model.clone(),
-            FinishReason::Stop,
-            0,
-        ).with_usage(self.usage);
+        let final_chunk =
+            ChatCompletionChunk::finish(self.id.clone(), self.model.clone(), FinishReason::Stop, 0)
+                .with_usage(self.usage);
         chunks.push((Duration::ZERO, final_chunk));
 
         chunks
@@ -706,10 +757,7 @@ mod tests {
     #[tokio::test]
     async fn test_chat_completion() {
         let engine = test_engine();
-        let request = ChatCompletionRequest::new(
-            "gpt-4",
-            vec![Message::user("Hello!")],
-        );
+        let request = ChatCompletionRequest::new("gpt-4", vec![Message::user("Hello!")]);
 
         let response = engine.chat_completion(&request).await.unwrap();
         assert!(!response.id.is_empty());
@@ -720,10 +768,8 @@ mod tests {
     #[tokio::test]
     async fn test_model_not_found() {
         let engine = SimulationEngine::default_config();
-        let request = ChatCompletionRequest::new(
-            "nonexistent-model",
-            vec![Message::user("Hello!")],
-        );
+        let request =
+            ChatCompletionRequest::new("nonexistent-model", vec![Message::user("Hello!")]);
 
         let result = engine.chat_completion(&request).await;
         assert!(matches!(result, Err(SimulationError::ModelNotFound(_))));
@@ -774,10 +820,7 @@ mod tests {
     #[tokio::test]
     async fn test_stats() {
         let engine = test_engine();
-        let request = ChatCompletionRequest::new(
-            "gpt-4",
-            vec![Message::user("Hello!")],
-        );
+        let request = ChatCompletionRequest::new("gpt-4", vec![Message::user("Hello!")]);
 
         engine.chat_completion(&request).await.unwrap();
 
@@ -789,10 +832,7 @@ mod tests {
     #[tokio::test]
     async fn test_chat_completion_traced() {
         let engine = test_engine();
-        let request = ChatCompletionRequest::new(
-            "gpt-4",
-            vec![Message::user("Hello!")],
-        );
+        let request = ChatCompletionRequest::new("gpt-4", vec![Message::user("Hello!")]);
 
         let (response, trace) = engine.chat_completion_traced(&request).await.unwrap();
         assert!(!response.id.is_empty());
@@ -812,10 +852,8 @@ mod tests {
     #[tokio::test]
     async fn test_chat_completion_traced_failure() {
         let engine = test_engine();
-        let request = ChatCompletionRequest::new(
-            "nonexistent-model",
-            vec![Message::user("Hello!")],
-        );
+        let request =
+            ChatCompletionRequest::new("nonexistent-model", vec![Message::user("Hello!")]);
 
         let result = engine.chat_completion_traced(&request).await;
         assert!(result.is_err());
@@ -844,12 +882,12 @@ mod tests {
         // Test that with default (RuvVector-first) config, requests fail
         // when RuvVector is not available
         let engine = SimulationEngine::default_config();
-        let request = ChatCompletionRequest::new(
-            "gpt-4",
-            vec![Message::user("Hello!")],
-        );
+        let request = ChatCompletionRequest::new("gpt-4", vec![Message::user("Hello!")]);
 
         let result = engine.chat_completion(&request).await;
-        assert!(matches!(result, Err(SimulationError::ServiceUnavailable(_))));
+        assert!(matches!(
+            result,
+            Err(SimulationError::ServiceUnavailable(_))
+        ));
     }
 }

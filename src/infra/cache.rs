@@ -180,7 +180,12 @@ impl Cache {
     }
 
     /// Set a value in the cache with optional custom TTL
-    pub fn set<T: Serialize>(&self, key: &str, value: T, ttl: Option<Duration>) -> Result<(), CacheError> {
+    pub fn set<T: Serialize>(
+        &self,
+        key: &str,
+        value: T,
+        ttl: Option<Duration>,
+    ) -> Result<(), CacheError> {
         let ttl = ttl.unwrap_or(self.config.default_ttl);
 
         // Serialize the value
@@ -192,7 +197,10 @@ impl Cache {
         let mut entries = self.entries.write();
 
         // Check capacity if not updating existing entry
-        if !entries.contains_key(key) && self.config.max_entries > 0 && entries.len() >= self.config.max_entries {
+        if !entries.contains_key(key)
+            && self.config.max_entries > 0
+            && entries.len() >= self.config.max_entries
+        {
             // Try to evict expired entries first
             self.cleanup_expired_locked(&mut entries);
 
@@ -245,7 +253,12 @@ impl Cache {
     }
 
     /// Get a value or compute it if not present
-    pub fn get_or_insert<T, F>(&self, key: &str, ttl: Option<Duration>, compute: F) -> Result<T, CacheError>
+    pub fn get_or_insert<T, F>(
+        &self,
+        key: &str,
+        ttl: Option<Duration>,
+        compute: F,
+    ) -> Result<T, CacheError>
     where
         T: Serialize + for<'de> Deserialize<'de> + Clone,
         F: FnOnce() -> T,
@@ -443,11 +456,15 @@ mod tests {
     fn test_get_or_insert() {
         let cache = Cache::default();
 
-        let value: String = cache.get_or_insert("key1", None, || "computed".to_string()).unwrap();
+        let value: String = cache
+            .get_or_insert("key1", None, || "computed".to_string())
+            .unwrap();
         assert_eq!(value, "computed");
 
         // Should return cached value
-        let value: String = cache.get_or_insert("key1", None, || "different".to_string()).unwrap();
+        let value: String = cache
+            .get_or_insert("key1", None, || "different".to_string())
+            .unwrap();
         assert_eq!(value, "computed");
     }
 }

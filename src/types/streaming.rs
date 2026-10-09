@@ -1,7 +1,7 @@
 //! Streaming types for Server-Sent Events
 
-use serde::{Deserialize, Serialize};
 use super::{FinishReason, Role, Usage};
+use serde::{Deserialize, Serialize};
 
 /// Streaming chat completion chunk (OpenAI-compatible)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -26,7 +26,10 @@ impl ChatCompletionChunk {
             model,
             choices,
             usage: None,
-            system_fingerprint: Some(format!("fp_simulator_{}", env!("CARGO_PKG_VERSION").replace('.', ""))),
+            system_fingerprint: Some(format!(
+                "fp_simulator_{}",
+                env!("CARGO_PKG_VERSION").replace('.', "")
+            )),
         }
     }
 
@@ -48,7 +51,10 @@ impl ChatCompletionChunk {
 
     /// Format as SSE data line
     pub fn to_sse_data(&self) -> String {
-        format!("data: {}\n\n", serde_json::to_string(self).unwrap_or_default())
+        format!(
+            "data: {}\n\n",
+            serde_json::to_string(self).unwrap_or_default()
+        )
     }
 }
 
@@ -192,8 +198,14 @@ pub struct AnthropicStreamMessage {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AnthropicContentBlockType {
-    Text { text: String },
-    ToolUse { id: String, name: String, input: serde_json::Value },
+    Text {
+        text: String,
+    },
+    ToolUse {
+        id: String,
+        name: String,
+        input: serde_json::Value,
+    },
 }
 
 /// Anthropic delta

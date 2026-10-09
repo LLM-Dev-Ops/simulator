@@ -8,11 +8,11 @@
 //! - CORS configuration
 
 mod api_key;
-mod rate_limit;
 mod headers;
 mod middleware;
+mod rate_limit;
 
 pub use api_key::*;
-pub use rate_limit::*;
 pub use headers::*;
 pub use middleware::*;
+pub use rate_limit::*;

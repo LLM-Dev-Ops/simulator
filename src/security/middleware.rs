@@ -3,19 +3,16 @@
 //! Combines all security middleware into a cohesive stack
 //! with proper ordering and configuration.
 
+use axum::{middleware as axum_middleware, Router};
 use std::sync::Arc;
-use axum::{
-    Router,
-    middleware as axum_middleware,
-};
-use tower_http::cors::{CorsLayer, Any, AllowOrigin};
+use tower_http::cors::{AllowOrigin, Any, CorsLayer};
 
-use crate::config::security::{SecurityConfig, CorsConfig};
+use crate::config::security::{CorsConfig, SecurityConfig};
 
 use super::{
-    api_key::{api_key_auth_middleware, admin_auth_middleware},
-    rate_limit::{rate_limit_middleware, RateLimiter},
+    api_key::{admin_auth_middleware, api_key_auth_middleware},
     headers::security_headers_middleware,
+    rate_limit::{rate_limit_middleware, RateLimiter},
 };
 
 /// Security state containing all security-related components
@@ -60,26 +57,34 @@ pub fn build_cors_layer(config: &CorsConfig) -> CorsLayer {
     if config.allowed_origins.iter().any(|o| o == "*") {
         cors = cors.allow_origin(Any);
     } else {
-        let origins: Vec<_> = config.allowed_origins.iter()
+        let origins: Vec<_> = config
+            .allowed_origins
+            .iter()
             .filter_map(|o| o.parse().ok())
             .collect();
         cors = cors.allow_origin(AllowOrigin::list(origins));
     }
 
     // Configure allowed methods
-    let methods: Vec<_> = config.allowed_methods.iter()
+    let methods: Vec<_> = config
+        .allowed_methods
+        .iter()
         .filter_map(|m| m.parse().ok())
         .collect();
     cors = cors.allow_methods(methods);
 
     // Configure allowed headers
-    let headers: Vec<_> = config.allowed_headers.iter()
+    let headers: Vec<_> = config
+        .allowed_headers
+        .iter()
         .filter_map(|h| h.parse().ok())
         .collect();
     cors = cors.allow_headers(headers);
 
     // Configure exposed headers
-    let exposed: Vec<_> = config.exposed_headers.iter()
+    let exposed: Vec<_> = config
+        .exposed_headers
+        .iter()
         .filter_map(|h| h.parse().ok())
         .collect();
     cors = cors.expose_headers(exposed);
@@ -102,10 +107,7 @@ pub fn build_cors_layer(config: &CorsConfig) -> CorsLayer {
 /// 2. CORS (handle preflight requests)
 /// 3. Rate limiting (applied before expensive operations)
 /// 4. API key authentication (innermost - applied to requests)
-pub fn apply_security_middleware<S>(
-    router: Router<S>,
-    security: SecurityState,
-) -> Router<S>
+pub fn apply_security_middleware<S>(router: Router<S>, security: SecurityState) -> Router<S>
 where
     S: Clone + Send + Sync + 'static,
 {

@@ -1,7 +1,7 @@
 //! Property-based tests for configuration validation
 
-use proptest::prelude::*;
 use llm_simulator::config::SimulatorConfig;
+use proptest::prelude::*;
 
 proptest! {
     /// Test that valid port numbers pass validation
@@ -91,7 +91,11 @@ mod validation_tests {
     fn test_default_config_valid() {
         let config = SimulatorConfig::default();
         let result = config.validate();
-        assert!(result.is_ok(), "Default config should be valid: {:?}", result);
+        assert!(
+            result.is_ok(),
+            "Default config should be valid: {:?}",
+            result
+        );
     }
 
     #[test]
@@ -99,7 +103,7 @@ mod validation_tests {
         let config = SimulatorConfig::default();
 
         // Should have default models
-        assert!(config.models.len() > 0);
+        assert!(!config.models.is_empty());
         assert!(config.models.contains_key("gpt-4"));
         assert!(config.models.contains_key("claude-3-5-sonnet-20241022"));
     }
