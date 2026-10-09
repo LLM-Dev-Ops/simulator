@@ -358,7 +358,13 @@ seed: null  # Set for deterministic behavior
 | `LLM_SIMULATOR_JSON_LOGS` | JSON log format | `false` |
 | `LLM_SIMULATOR_REQUIRE_AUTH` | Require auth | `false` |
 | `LLM_SIMULATOR_API_KEY` | API key | - |
+| `CORS_ALLOWED_ORIGINS` | Cloud Function browser origins, comma-separated and exact-match | Browser access disabled |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint | - |
+
+`CORS_ALLOWED_ORIGINS` accepts origins only (for example,
+`https://console.example.com,https://admin.example.com`), not URL paths. Requests
+without an `Origin` header continue to work for server-to-server clients. Browser
+origins not in the list receive no CORS permission headers.
 
 ## Supported Models
 

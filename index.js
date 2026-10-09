@@ -16,6 +16,31 @@ const AGENTS = ['what-if', 'scenario'];
 const MAX_TOKENS = 2500;
 const MAX_LATENCY_MS = 5000;
 
+function parseAllowedOrigins(value) {
+  if (!value) return new Set();
+
+  return new Set(value.split(',').map((entry) => {
+    const configured = entry.trim();
+    if (!configured) return null;
+
+    const parsed = new URL(configured);
+    const isWebOrigin = parsed.protocol === 'https:' || parsed.protocol === 'http:';
+    const hasOnlyOrigin = parsed.pathname === '/' && !parsed.search && !parsed.hash &&
+      !parsed.username && !parsed.password;
+    if (!isWebOrigin || !hasOnlyOrigin) {
+      throw new Error(`Invalid CORS_ALLOWED_ORIGINS entry: ${configured}`);
+    }
+    return parsed.origin;
+  }).filter(Boolean));
+}
+
+const ALLOWED_CORS_ORIGINS = parseAllowedOrigins(process.env.CORS_ALLOWED_ORIGINS);
+
+function allowConfiguredOrigin(origin, callback) {
+  // Requests without Origin are server-to-server and are not subject to CORS.
+  callback(null, !origin || ALLOWED_CORS_ORIGINS.has(origin));
+}
+
 // ============================================================================
 // Keyword dictionaries for rule-based analysis
 // ============================================================================
@@ -525,7 +550,7 @@ function handleHealth(req, res) {
 const app = express();
 
 app.use(cors({
-  origin: true,
+  origin: allowConfiguredOrigin,
   methods: ['GET', 'POST', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Correlation-ID', 'X-Anthropic-Api-Key'],
   exposedHeaders: ['X-Correlation-ID'],
