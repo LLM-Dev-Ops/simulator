@@ -356,7 +356,16 @@ jobs:
           sudo mv kubeval /usr/local/bin
 
       - name: Validate with kubeval
-        run: kubeval deploy/kubernetes/*.yaml
+        run: |
+          # Pin both the Kubernetes version and the immutable upstream schema tree.
+          # Custom resources are listed explicitly because their CRD schemas are
+          # not vendored in this repository; all 18 built-in resources are strict.
+          kubeval \
+            --strict \
+            --kubernetes-version 1.30.0 \
+            --schema-location https://raw.githubusercontent.com/yannh/kubernetes-json-schema/5f1fa4f7908afc9b6641c62d282a4a22437626e1 \
+            --skip-kinds VerticalPodAutoscaler,ScaledObject,ManagedCertificate,BackendConfig,VirtualService,Gateway \
+            deploy/kubernetes/*.yaml
 
   # ----------------------------------------------------------------------------
   # Notification
