@@ -59,7 +59,7 @@ async function main() {
       rootPolicy: { revision: parent },
       proposer: async () => ({ value: head, summary: 'Sanitize parser failures into stable JSON errors',
         inverse: { path: 'index.js', parentBytes: inverse, sha256: hash(inverse) } }),
-      evaluator, holdout: { id: 'holdout', items: [0, 1, 2, 3, 4, 5] },
+      evaluator, holdout: { id: 'holdout', items: [0, 1, 2, 3, 4, 5, 6, 7] },
       anchor: { id: 'anchor', items: [0, 1, 2, 3, 4, 5] },
       maxGenerations: 1, signer: fw.makeSigner(), promotionRule: fw.meetsPromotionRule, dataSource: 'LIVE',
     });

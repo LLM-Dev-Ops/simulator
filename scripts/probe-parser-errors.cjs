@@ -31,6 +31,8 @@ async function main() {
       [whatif, '{}', { 'Content-Type': 'application/json; charset=iso-8859-1' }, 415, 'UNSUPPORTED_MEDIA_TYPE'],
       [scenario, '{}', { 'Content-Encoding': 'snappy' }, 415, 'UNSUPPORTED_MEDIA_TYPE'],
       [whatif, '42', {}, 400, 'INVALID_JSON'],
+      [whatif, 'not-compressed', { 'Content-Encoding': 'gzip' }, 400, 'INVALID_REQUEST'],
+      [scenario, 'not-compressed', { 'Content-Encoding': 'deflate' }, 400, 'INVALID_REQUEST'],
     ];
     const holdout = [];
     const statuses = [];

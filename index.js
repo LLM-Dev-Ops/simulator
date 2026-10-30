@@ -599,7 +599,9 @@ app.use((err, req, res, next) => {
   };
   const [status, code, message] = Object.hasOwn(errors, err.type)
     ? errors[err.type]
-    : [500, 'INTERNAL_ERROR', 'An internal error occurred'];
+    : err.status === 400
+      ? [400, 'INVALID_REQUEST', 'Invalid request body']
+      : [500, 'INTERNAL_ERROR', 'An internal error occurred'];
   res.set('X-Content-Type-Options', 'nosniff');
   return res.status(status).json({
     error: { code, message },
