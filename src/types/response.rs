@@ -1,8 +1,8 @@
 //! Response types for LLM APIs
 
+use super::{FinishReason, Role, Usage};
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
-use super::{FinishReason, Role, Usage};
 
 /// Chat completion response (OpenAI-compatible)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -19,7 +19,12 @@ pub struct ChatCompletionResponse {
 }
 
 impl ChatCompletionResponse {
-    pub fn new(id: String, model: String, choices: Vec<ChatCompletionChoice>, usage: Usage) -> Self {
+    pub fn new(
+        id: String,
+        model: String,
+        choices: Vec<ChatCompletionChoice>,
+        usage: Usage,
+    ) -> Self {
         Self {
             id,
             object: "chat.completion".to_string(),
@@ -27,7 +32,10 @@ impl ChatCompletionResponse {
             model,
             choices,
             usage: Some(usage),
-            system_fingerprint: Some(format!("fp_simulator_{}", env!("CARGO_PKG_VERSION").replace('.', ""))),
+            system_fingerprint: Some(format!(
+                "fp_simulator_{}",
+                env!("CARGO_PKG_VERSION").replace('.', "")
+            )),
         }
     }
 
@@ -236,7 +244,9 @@ impl AnthropicMessagesResponse {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum AnthropicContentBlock {
-    Text { text: String },
+    Text {
+        text: String,
+    },
     ToolUse {
         id: String,
         name: String,
@@ -345,7 +355,10 @@ mod tests {
 
         assert_eq!(response.id, "chatcmpl-123");
         assert_eq!(response.choices.len(), 1);
-        assert_eq!(response.choices[0].message.content, Some("Hello!".to_string()));
+        assert_eq!(
+            response.choices[0].message.content,
+            Some("Hello!".to_string())
+        );
     }
 
     #[test]

@@ -6,9 +6,9 @@
 //! - Request/response tracking
 //! - FEU (Foundational Execution Unit) span hierarchy and validation
 
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::time::Instant;
-use serde::{Deserialize, Serialize};
 use tracing::{info_span, Span};
 
 use crate::adapters::observatory::{ConsumedSpan, FeuSpanKind, SpanEvent, SpanStatus};
@@ -88,7 +88,8 @@ impl RequestSpan {
 
     /// Record latency
     pub fn record_latency(&self) {
-        self.span.record("latency_ms", self.start.elapsed().as_millis() as u64);
+        self.span
+            .record("latency_ms", self.start.elapsed().as_millis() as u64);
     }
 
     /// Get request ID
@@ -285,7 +286,10 @@ impl FeuSpanCollector {
     /// Create a new collector. Generates trace_id and repo span automatically.
     pub fn new(trace_id: Option<String>) -> Self {
         let trace_id = trace_id.unwrap_or_else(|| uuid::Uuid::new_v4().to_string());
-        let repo_span_id = format!("repo_{}", uuid::Uuid::new_v4().to_string().replace('-', "")[..16].to_string());
+        let repo_span_id = format!(
+            "repo_{}",
+            &uuid::Uuid::new_v4().to_string().replace('-', "")[..16]
+        );
 
         let repo_span = ConsumedSpan {
             span_id: repo_span_id.clone(),
@@ -337,8 +341,9 @@ impl FeuSpanCollector {
         }
 
         let span_id = format!(
-            "agent_{}_{}", agent_name,
-            uuid::Uuid::new_v4().to_string().replace('-', "")[..12].to_string()
+            "agent_{}_{}",
+            agent_name,
+            &uuid::Uuid::new_v4().to_string().replace('-', "")[..12]
         );
 
         let span = ConsumedSpan {
@@ -368,7 +373,11 @@ impl FeuSpanCollector {
     }
 
     /// Attach an artifact to a specific agent span.
-    pub fn attach_artifact(&mut self, span_id: &str, artifact: SpanArtifact) -> Result<(), FeuValidationError> {
+    pub fn attach_artifact(
+        &mut self,
+        span_id: &str,
+        artifact: SpanArtifact,
+    ) -> Result<(), FeuValidationError> {
         // Verify the span exists
         if !self.agent_spans.iter().any(|s| s.span_id == span_id) {
             return Err(FeuValidationError::SpanNotFound {
@@ -385,8 +394,14 @@ impl FeuSpanCollector {
     }
 
     /// End an agent span with a given status. Records end_time.
-    pub fn end_agent_span(&mut self, span_id: &str, status: SpanStatus) -> Result<(), FeuValidationError> {
-        let span = self.agent_spans.iter_mut()
+    pub fn end_agent_span(
+        &mut self,
+        span_id: &str,
+        status: SpanStatus,
+    ) -> Result<(), FeuValidationError> {
+        let span = self
+            .agent_spans
+            .iter_mut()
             .find(|s| s.span_id == *span_id)
             .ok_or_else(|| FeuValidationError::SpanNotFound {
                 span_id: span_id.to_string(),
@@ -400,8 +415,14 @@ impl FeuSpanCollector {
     }
 
     /// Fail an agent span. Adds error event and propagates failure to the repo span.
-    pub fn fail_agent_span(&mut self, span_id: &str, error_msg: &str) -> Result<(), FeuValidationError> {
-        let span = self.agent_spans.iter_mut()
+    pub fn fail_agent_span(
+        &mut self,
+        span_id: &str,
+        error_msg: &str,
+    ) -> Result<(), FeuValidationError> {
+        let span = self
+            .agent_spans
+            .iter_mut()
             .find(|s| s.span_id == *span_id)
             .ok_or_else(|| FeuValidationError::SpanNotFound {
                 span_id: span_id.to_string(),
@@ -436,12 +457,14 @@ impl FeuSpanCollector {
 
         // Set repo span end_time
         self.repo_span.end_time = Some(chrono::Utc::now().timestamp_millis() as u64);
-        self.repo_span.latency_ms = Some(
-            (self.repo_span.end_time.unwrap() - self.repo_span.start_time) as f64,
-        );
+        self.repo_span.latency_ms =
+            Some((self.repo_span.end_time.unwrap() - self.repo_span.start_time) as f64);
 
         // Derive overall status: if ANY agent span is Failed, repo is Failed
-        let has_failure = self.agent_spans.iter().any(|s| s.status == SpanStatus::Failed);
+        let has_failure = self
+            .agent_spans
+            .iter()
+            .any(|s| s.status == SpanStatus::Failed);
         if has_failure {
             self.repo_span.status = SpanStatus::Failed;
         } else if self.repo_span.status == SpanStatus::Unset {
@@ -543,7 +566,10 @@ mod tests {
         let collector = FeuSpanCollector::new(Some("trace-001".to_string()));
         assert_eq!(collector.trace_id(), "trace-001");
         assert!(collector.repo_span_id().starts_with("repo_"));
-        assert_eq!(collector.repo_span.parent_span_id, Some(FEU_ROOT_PARENT.to_string()));
+        assert_eq!(
+            collector.repo_span.parent_span_id,
+            Some(FEU_ROOT_PARENT.to_string())
+        );
         assert_eq!(collector.repo_span.span_kind, Some(FeuSpanKind::Repo));
         assert_eq!(collector.repo_span.name, "repo_execution");
     }
@@ -555,7 +581,9 @@ mod tests {
 
         let span_id = collector.begin_agent_span("intelligence").unwrap();
 
-        let agent_span = collector.agent_spans.iter()
+        let agent_span = collector
+            .agent_spans
+            .iter()
             .find(|s| s.span_id == span_id)
             .unwrap();
 
@@ -570,7 +598,10 @@ mod tests {
         collector.begin_agent_span("intelligence").unwrap();
 
         let result = collector.begin_agent_span("intelligence");
-        assert!(matches!(result, Err(FeuValidationError::DuplicateAgentSpan { .. })));
+        assert!(matches!(
+            result,
+            Err(FeuValidationError::DuplicateAgentSpan { .. })
+        ));
     }
 
     #[test]
@@ -578,13 +609,17 @@ mod tests {
         let mut collector = FeuSpanCollector::new(None);
         let span_id = collector.begin_agent_span("engine").unwrap();
 
-        collector.fail_agent_span(&span_id, "something broke").unwrap();
+        collector
+            .fail_agent_span(&span_id, "something broke")
+            .unwrap();
 
         // Repo span should be Failed due to propagation
         assert_eq!(collector.repo_span.status, SpanStatus::Failed);
 
         // Agent span should have error event
-        let agent_span = collector.agent_spans.iter()
+        let agent_span = collector
+            .agent_spans
+            .iter()
             .find(|s| s.span_id == span_id)
             .unwrap();
         assert_eq!(agent_span.status, SpanStatus::Failed);
@@ -677,7 +712,10 @@ mod tests {
         };
 
         let result = FeuSpanCollector::validate_span(&span);
-        assert!(matches!(result, Err(FeuValidationError::MissingParentSpanId { .. })));
+        assert!(matches!(
+            result,
+            Err(FeuValidationError::MissingParentSpanId { .. })
+        ));
     }
 
     #[test]
@@ -690,7 +728,10 @@ mod tests {
         };
 
         let result = collector.attach_artifact("nonexistent", artifact);
-        assert!(matches!(result, Err(FeuValidationError::SpanNotFound { .. })));
+        assert!(matches!(
+            result,
+            Err(FeuValidationError::SpanNotFound { .. })
+        ));
     }
 
     #[test]

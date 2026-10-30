@@ -15,7 +15,7 @@ pub use tracing_ext::*;
 
 // FEU (Foundational Execution Unit) re-exports
 pub use tracing_ext::{
-    FeuSpanCollector, FeuValidationError, ExecutionTrace, SpanArtifact, FEU_ROOT_PARENT,
+    ExecutionTrace, FeuSpanCollector, FeuValidationError, SpanArtifact, FEU_ROOT_PARENT,
 };
 
 use std::time::Duration;
@@ -31,12 +31,11 @@ pub fn init_telemetry(config: &TelemetryConfig) -> SimulatorResult<()> {
     }
 
     // Build the env filter
-    let env_filter = EnvFilter::try_from_default_env()
-        .unwrap_or_else(|_| EnvFilter::new(&config.log_level));
+    let env_filter =
+        EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new(&config.log_level));
 
     // Build subscriber based on config
-    let subscriber = tracing_subscriber::registry()
-        .with(env_filter);
+    let subscriber = tracing_subscriber::registry().with(env_filter);
 
     if config.json_logs {
         let json_layer = tracing_subscriber::fmt::layer()
@@ -69,8 +68,12 @@ pub fn init_telemetry(config: &TelemetryConfig) -> SimulatorResult<()> {
 /// Initialize OpenTelemetry tracing (optional)
 #[cfg(feature = "otel")]
 pub fn init_otel(config: &TelemetryConfig) -> SimulatorResult<()> {
-    use opentelemetry::sdk::trace::{self, RandomIdGenerator, Sampler};
     use opentelemetry_otlp::WithExportConfig;
+    use opentelemetry_sdk::{
+        runtime::Tokio,
+        trace::{self, RandomIdGenerator, Sampler},
+        Resource,
+    };
 
     if let Some(endpoint) = &config.otlp_endpoint {
         let tracer = opentelemetry_otlp::new_pipeline()
@@ -78,24 +81,28 @@ pub fn init_otel(config: &TelemetryConfig) -> SimulatorResult<()> {
             .with_exporter(
                 opentelemetry_otlp::new_exporter()
                     .tonic()
-                    .with_endpoint(endpoint)
+                    .with_endpoint(endpoint),
             )
             .with_trace_config(
                 trace::config()
                     .with_sampler(Sampler::AlwaysOn)
                     .with_id_generator(RandomIdGenerator::default())
-                    .with_resource(opentelemetry::sdk::Resource::new(vec![
+                    .with_resource(Resource::new(vec![
                         opentelemetry::KeyValue::new("service.name", config.service_name.clone()),
                         opentelemetry::KeyValue::new("service.version", env!("CARGO_PKG_VERSION")),
-                    ]))
+                    ])),
             )
-            .install_batch(opentelemetry::runtime::Tokio)
+            .install_batch(Tokio)
             .map_err(|e| crate::error::SimulationError::Config(e.to_string()))?;
 
-        let otel_layer = tracing_opentelemetry::layer().with_tracer(tracer);
+        let _otel_layer =
+            tracing_opentelemetry::layer::<tracing_subscriber::Registry>().with_tracer(tracer);
 
         // Note: This needs to be integrated with the main subscriber
-        tracing::info!("OpenTelemetry tracing initialized with endpoint: {}", endpoint);
+        tracing::info!(
+            "OpenTelemetry tracing initialized with endpoint: {}",
+            endpoint
+        );
     }
 
     Ok(())

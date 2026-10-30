@@ -28,10 +28,10 @@ pub mod cache;
 pub mod retry;
 
 pub use cache::{Cache, CacheConfig, CacheEntry, CacheError, CacheStats};
-pub use retry::{RetryPolicy, RetryConfig, RetryError, Backoff};
+pub use retry::{Backoff, RetryConfig, RetryError, RetryPolicy};
 
-use std::sync::Arc;
 use parking_lot::RwLock;
+use std::sync::Arc;
 
 /// Unified infrastructure context for Phase 2B integrations
 ///

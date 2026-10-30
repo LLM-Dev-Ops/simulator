@@ -63,8 +63,14 @@ impl TokenBucket {
                 return false;
             }
 
-            if self.tokens
-                .compare_exchange_weak(current, current - count, Ordering::AcqRel, Ordering::Relaxed)
+            if self
+                .tokens
+                .compare_exchange_weak(
+                    current,
+                    current - count,
+                    Ordering::AcqRel,
+                    Ordering::Relaxed,
+                )
                 .is_ok()
             {
                 return true;
@@ -90,7 +96,8 @@ impl TokenBucket {
         }
 
         // Try to update last_refill atomically
-        if self.last_refill
+        if self
+            .last_refill
             .compare_exchange_weak(last, now_nanos, Ordering::AcqRel, Ordering::Relaxed)
             .is_ok()
         {
@@ -223,10 +230,7 @@ pub enum RateLimitResult {
         reset: Duration,
     },
     /// Rate limit exceeded
-    Exceeded {
-        retry_after: Duration,
-        limit: u32,
-    },
+    Exceeded { retry_after: Duration, limit: u32 },
 }
 
 /// Rate limit error response
@@ -238,20 +242,17 @@ pub struct RateLimitError {
 
 impl IntoResponse for RateLimitError {
     fn into_response(self) -> Response {
-        let body = ErrorResponse::new("rate_limit_error", "Rate limit exceeded. Please retry later.");
+        let body = ErrorResponse::new(
+            "rate_limit_error",
+            "Rate limit exceeded. Please retry later.",
+        );
         let retry_after_secs = self.retry_after.as_secs().max(1);
 
         let mut response = (StatusCode::TOO_MANY_REQUESTS, Json(body)).into_response();
 
         let headers = response.headers_mut();
-        headers.insert(
-            "retry-after",
-            retry_after_secs.to_string().parse().unwrap(),
-        );
-        headers.insert(
-            "x-ratelimit-limit",
-            self.limit.to_string().parse().unwrap(),
-        );
+        headers.insert("retry-after", retry_after_secs.to_string().parse().unwrap());
+        headers.insert("x-ratelimit-limit", self.limit.to_string().parse().unwrap());
         headers.insert("x-ratelimit-remaining", "0".parse().unwrap());
 
         response
@@ -270,7 +271,9 @@ pub async fn rate_limit_middleware(
     }
 
     // Get key info from extensions (set by api_key_auth_middleware)
-    let key_info = request.extensions().get::<ApiKeyInfo>()
+    let key_info = request
+        .extensions()
+        .get::<ApiKeyInfo>()
         .cloned()
         .unwrap_or_else(ApiKeyInfo::anonymous);
 
@@ -279,15 +282,16 @@ pub async fn rate_limit_middleware(
 
     // Check rate limit
     match limiter.try_acquire(rate_limit_key, key_info.tier) {
-        RateLimitResult::Allowed { remaining, limit, reset } => {
+        RateLimitResult::Allowed {
+            remaining,
+            limit,
+            reset,
+        } => {
             let mut response = next.run(request).await;
 
             // Add rate limit headers
             let headers = response.headers_mut();
-            headers.insert(
-                "x-ratelimit-limit",
-                limit.to_string().parse().unwrap(),
-            );
+            headers.insert("x-ratelimit-limit", limit.to_string().parse().unwrap());
             headers.insert(
                 "x-ratelimit-remaining",
                 remaining.to_string().parse().unwrap(),

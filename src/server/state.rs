@@ -1,10 +1,10 @@
 //! Server state management
 
-use std::sync::Arc;
+use super::shutdown::ShutdownState;
 use crate::config::SimulatorConfig;
 use crate::engine::SimulationEngine;
 use crate::telemetry::SimulatorMetrics;
-use super::shutdown::ShutdownState;
+use std::sync::Arc;
 
 /// Shared application state
 #[derive(Clone)]

@@ -1,8 +1,8 @@
 //! Anthropic provider implementation
 
-use async_trait::async_trait;
-use crate::types::Provider;
 use super::ProviderHandler;
+use crate::types::Provider;
+use async_trait::async_trait;
 
 /// Anthropic API handler
 pub struct AnthropicHandler {
@@ -50,8 +50,7 @@ impl ProviderHandler for AnthropicHandler {
     }
 
     fn supports_model(&self, model: &str) -> bool {
-        self.models.iter().any(|m| m == model)
-            || Self::matches_pattern(model)
+        self.models.iter().any(|m| m == model) || Self::matches_pattern(model)
     }
 
     fn supported_models(&self) -> Vec<String> {
@@ -127,12 +126,12 @@ pub mod anthropic_utils {
         response: AnthropicMessagesResponse,
         request_model: &str,
     ) -> ChatCompletionResponse {
-        let content = response.content.iter()
-            .filter_map(|block| {
-                match block {
-                    AnthropicContentBlock::Text { text } => Some(text.clone()),
-                    _ => None,
-                }
+        let content = response
+            .content
+            .iter()
+            .filter_map(|block| match block {
+                AnthropicContentBlock::Text { text } => Some(text.clone()),
+                _ => None,
             })
             .collect::<Vec<_>>()
             .join("");

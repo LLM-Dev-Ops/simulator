@@ -19,7 +19,12 @@ async fn test_openai_streaming_basic() {
     assert_eq!(response.status().as_u16(), 200);
 
     // Verify content-type is SSE
-    let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(content_type.contains("text/event-stream"));
 }
 
@@ -118,12 +123,20 @@ async fn test_gemini_streaming_basic() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/models/gemini-1.5-pro/streamGenerateContent", gemini_request("Hello"))
+        .post(
+            "/v1/models/gemini-1.5-pro/streamGenerateContent",
+            gemini_request("Hello"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
 
-    let content_type = response.headers().get("content-type").unwrap().to_str().unwrap();
+    let content_type = response
+        .headers()
+        .get("content-type")
+        .unwrap()
+        .to_str()
+        .unwrap();
     assert!(content_type.contains("text/event-stream"));
 }
 

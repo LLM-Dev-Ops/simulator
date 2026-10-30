@@ -210,9 +210,7 @@ pub async fn graceful_shutdown(shutdown_state: Arc<ShutdownState>) {
 }
 
 /// Admin endpoint to trigger drain manually
-pub async fn admin_drain(
-    State(shutdown): State<Arc<ShutdownState>>,
-) -> Json<DrainStatus> {
+pub async fn admin_drain(State(shutdown): State<Arc<ShutdownState>>) -> Json<DrainStatus> {
     shutdown.start_drain();
 
     Json(DrainStatus {
@@ -224,9 +222,7 @@ pub async fn admin_drain(
 }
 
 /// Admin endpoint to get drain status
-pub async fn admin_drain_status(
-    State(shutdown): State<Arc<ShutdownState>>,
-) -> Json<DrainStatus> {
+pub async fn admin_drain_status(State(shutdown): State<Arc<ShutdownState>>) -> Json<DrainStatus> {
     Json(DrainStatus {
         draining: shutdown.is_draining(),
         in_flight_requests: shutdown.in_flight_count(),

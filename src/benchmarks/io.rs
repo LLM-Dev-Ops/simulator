@@ -54,8 +54,8 @@ pub fn write_raw_result(result: &BenchmarkResult) -> Result<PathBuf> {
     );
     let path = raw_output_dir().join(&filename);
 
-    let file = File::create(&path)
-        .with_context(|| format!("Failed to create result file: {:?}", path))?;
+    let file =
+        File::create(&path).with_context(|| format!("Failed to create result file: {:?}", path))?;
     let writer = BufWriter::new(file);
 
     serde_json::to_writer_pretty(writer, result)
@@ -99,8 +99,8 @@ pub fn write_latest_results(results: &[BenchmarkResult]) -> Result<PathBuf> {
 
 /// Read benchmark results from a JSON file
 pub fn read_results(path: &Path) -> Result<Vec<BenchmarkResult>> {
-    let file = File::open(path)
-        .with_context(|| format!("Failed to open results file: {:?}", path))?;
+    let file =
+        File::open(path).with_context(|| format!("Failed to open results file: {:?}", path))?;
     let reader = BufReader::new(file);
 
     let results: Vec<BenchmarkResult> = serde_json::from_reader(reader)
@@ -158,8 +158,8 @@ pub fn write_output_file(filename: &str, content: &str) -> Result<PathBuf> {
     ensure_output_dirs()?;
 
     let path = output_dir().join(filename);
-    let mut file = File::create(&path)
-        .with_context(|| format!("Failed to create file: {:?}", path))?;
+    let mut file =
+        File::create(&path).with_context(|| format!("Failed to create file: {:?}", path))?;
 
     file.write_all(content.as_bytes())
         .with_context(|| format!("Failed to write to: {:?}", path))?;

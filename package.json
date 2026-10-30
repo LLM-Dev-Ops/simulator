@@ -8,12 +8,14 @@
   },
   "scripts": {
     "start": "node -e \"const app = require('./index').handler; const port = process.env.PORT || 8080; app.listen(port, () => console.log('Listening on', port));\"",
-    "test": "node test.js"
+    "test": "node test.js && node scripts/probe-parser-errors.cjs ."
   },
   "dependencies": {
     "ajv": "^8.17.1",
-    "claude-flow": "^3.0.0-alpha.179",
     "cors": "^2.8.5",
     "express": "^4.21.2"
+  },
+  "overrides": {
+    "qs": "6.16.0"
   }
 }

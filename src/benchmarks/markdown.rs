@@ -2,7 +2,7 @@
 //!
 //! Generates markdown-formatted benchmark reports and summaries.
 
-use chrono::{DateTime, Utc};
+use chrono::Utc;
 
 use super::BenchmarkResult;
 
@@ -91,14 +91,18 @@ pub fn generate_summary(results: &[BenchmarkResult]) -> String {
     let passed = results.iter().filter(|r| !has_error(&r.metrics)).count();
     let failed = results.len() - passed;
 
-    summary.push_str(&format!("## Results: {}/{} Passed\n\n", passed, results.len()));
+    summary.push_str(&format!(
+        "## Results: {}/{} Passed\n\n",
+        passed,
+        results.len()
+    ));
 
     if failed > 0 {
         summary.push_str("### Failed Benchmarks\n\n");
         for result in results.iter().filter(|r| has_error(&r.metrics)) {
             summary.push_str(&format!("- {}\n", result.target_id));
         }
-        summary.push_str("\n");
+        summary.push('\n');
     }
 
     summary.push_str("### Benchmark Targets\n\n");
@@ -109,7 +113,10 @@ pub fn generate_summary(results: &[BenchmarkResult]) -> String {
             "[x]"
         };
         let metrics = extract_key_metrics(&result.metrics);
-        summary.push_str(&format!("- {} **{}**: {}\n", status_icon, result.target_id, metrics));
+        summary.push_str(&format!(
+            "- {} **{}**: {}\n",
+            status_icon, result.target_id, metrics
+        ));
     }
 
     summary
@@ -127,11 +134,15 @@ pub fn result_to_markdown(result: &BenchmarkResult) -> String {
 
     if let Some(obj) = result.metrics.as_object() {
         for (key, value) in obj {
-            md.push_str(&format!("- **{}**: {}\n", format_key(key), format_value(value)));
+            md.push_str(&format!(
+                "- **{}**: {}\n",
+                format_key(key),
+                format_value(value)
+            ));
         }
     }
 
-    md.push_str("\n");
+    md.push('\n');
     md
 }
 
@@ -269,14 +280,19 @@ mod tests {
 
     #[test]
     fn test_format_key() {
-        assert_eq!(format_key("throughput_ops_per_sec"), "Throughput Ops Per Sec");
+        assert_eq!(
+            format_key("throughput_ops_per_sec"),
+            "Throughput Ops Per Sec"
+        );
         assert_eq!(format_key("latency_avg_ms"), "Latency Avg Ms");
     }
 
     #[test]
     fn test_has_error() {
         assert!(!has_error(&serde_json::json!({"value": 100})));
-        assert!(has_error(&serde_json::json!({"error": "something went wrong"})));
+        assert!(has_error(
+            &serde_json::json!({"error": "something went wrong"})
+        ));
         assert!(has_error(&serde_json::json!({"success": false})));
         assert!(!has_error(&serde_json::json!({"success": true})));
     }

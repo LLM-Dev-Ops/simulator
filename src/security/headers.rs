@@ -8,13 +8,13 @@
 //! - Content Security Policy
 //! - HTTP Strict Transport Security
 
-use std::sync::Arc;
 use axum::{
     extract::{Request, State},
     http::HeaderValue,
     middleware::Next,
     response::Response,
 };
+use std::sync::Arc;
 
 use crate::config::security::SecurityHeadersConfig;
 
@@ -66,26 +66,17 @@ pub async fn security_headers_middleware(
     if let Ok(value) = HeaderValue::from_str(&config.frame_options) {
         headers.insert("x-frame-options", value);
     } else {
-        headers.insert(
-            "x-frame-options",
-            STATIC_HEADERS.x_frame_options.clone(),
-        );
+        headers.insert("x-frame-options", STATIC_HEADERS.x_frame_options.clone());
     }
 
     // XSS protection (legacy browsers)
-    headers.insert(
-        "x-xss-protection",
-        STATIC_HEADERS.x_xss_protection.clone(),
-    );
+    headers.insert("x-xss-protection", STATIC_HEADERS.x_xss_protection.clone());
 
     // Referrer policy
     if let Ok(value) = HeaderValue::from_str(&config.referrer_policy) {
         headers.insert("referrer-policy", value);
     } else {
-        headers.insert(
-            "referrer-policy",
-            STATIC_HEADERS.referrer_policy.clone(),
-        );
+        headers.insert("referrer-policy", STATIC_HEADERS.referrer_policy.clone());
     }
 
     // Content Security Policy

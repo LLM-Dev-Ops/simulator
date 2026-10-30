@@ -4,7 +4,7 @@
 
 use clap::Parser;
 
-use llm_simulator::cli::{Cli, execute};
+use llm_simulator::cli::{execute, Cli};
 
 #[tokio::main]
 async fn main() -> anyhow::Result<()> {
@@ -28,10 +28,13 @@ mod tests {
         let cli = Cli::try_parse_from([
             "llm-simulator",
             "serve",
-            "--port", "9090",
+            "--port",
+            "9090",
             "--chaos",
-            "--seed", "42",
-        ]).unwrap();
+            "--seed",
+            "42",
+        ])
+        .unwrap();
 
         if let Commands::Serve(cmd) = cli.command {
             assert_eq!(cmd.port, 9090);
@@ -44,23 +47,17 @@ mod tests {
 
     #[test]
     fn test_cli_generate() {
-        let cli = Cli::try_parse_from([
-            "llm-simulator",
-            "generate",
-            "chat",
-            "--message", "Hello",
-        ]).unwrap();
+        let cli = Cli::try_parse_from(["llm-simulator", "generate", "chat", "--message", "Hello"])
+            .unwrap();
 
         assert!(matches!(cli.command, Commands::Generate(_)));
     }
 
     #[test]
     fn test_cli_health() {
-        let cli = Cli::try_parse_from([
-            "llm-simulator",
-            "health",
-            "--url", "http://localhost:8080",
-        ]).unwrap();
+        let cli =
+            Cli::try_parse_from(["llm-simulator", "health", "--url", "http://localhost:8080"])
+                .unwrap();
 
         assert!(matches!(cli.command, Commands::Health(_)));
     }

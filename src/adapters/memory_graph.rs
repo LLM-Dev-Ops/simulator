@@ -18,11 +18,11 @@
 //! let lineage = adapter.consume_prompt_lineage("prompt-123").await?;
 //! ```
 
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 
 /// Prompt lineage data consumed from LLM-Memory-Graph
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -519,7 +519,9 @@ impl MemoryGraphConsumer for MemoryGraphAdapter {
         limit: usize,
     ) -> Result<Vec<ConsumedSessionContext>, AdapterError> {
         // Return cached sessions up to limit
-        let sessions: Vec<_> = self.session_cache.read()
+        let sessions: Vec<_> = self
+            .session_cache
+            .read()
             .values()
             .take(limit)
             .cloned()
@@ -548,31 +550,42 @@ impl ConsumedPromptLineage {
     /// Get the depth in the lineage tree (0 for root)
     pub fn depth(&self) -> u32 {
         // Simplified - would need full tree traversal
-        if self.parent_id.is_none() { 0 } else { 1 }
+        if self.parent_id.is_none() {
+            0
+        } else {
+            1
+        }
     }
 }
 
 impl ConsumedGraphContext {
     /// Get nodes of a specific type
     pub fn nodes_of_type(&self, node_type: &NodeType) -> Vec<&ContextNode> {
-        self.nodes.iter()
+        self.nodes
+            .iter()
             .filter(|n| &n.node_type == node_type)
             .collect()
     }
 
     /// Get edges of a specific type
     pub fn edges_of_type(&self, edge_type: &EdgeType) -> Vec<&ContextEdge> {
-        self.edges.iter()
+        self.edges
+            .iter()
             .filter(|e| &e.edge_type == edge_type)
             .collect()
     }
 
     /// Get nodes connected to a given node
     pub fn connected_nodes(&self, node_id: &str) -> Vec<&str> {
-        self.edges.iter()
+        self.edges
+            .iter()
             .filter(|e| e.source == node_id || e.target == node_id)
             .map(|e| {
-                if e.source == node_id { e.target.as_str() } else { e.source.as_str() }
+                if e.source == node_id {
+                    e.target.as_str()
+                } else {
+                    e.source.as_str()
+                }
             })
             .collect()
     }
@@ -604,8 +617,11 @@ impl FeuMemoryGraphConsumer for MemoryGraphAdapter {
         agent_id: &str,
         collector: &mut FeuSpanCollector,
     ) -> Result<Option<ConsumedAgentLineage>, AdapterError> {
-        let span_id = collector.begin_agent_span("memory_graph")
-            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| AdapterError::UpstreamError(e.to_string()))?;
+        let span_id = collector.begin_agent_span("memory_graph").map_err(
+            |e: crate::telemetry::tracing_ext::FeuValidationError| {
+                AdapterError::UpstreamError(e.to_string())
+            },
+        )?;
 
         match self.consume_agent_lineage(agent_id).await {
             Ok(Some(lineage)) => {
@@ -651,9 +667,7 @@ impl ConsumedAgentLineage {
 
     /// Get successful tool invocations
     pub fn successful_tools(&self) -> Vec<&ToolInvocation> {
-        self.tool_invocations.iter()
-            .filter(|t| t.success)
-            .collect()
+        self.tool_invocations.iter().filter(|t| t.success).collect()
     }
 }
 
@@ -730,14 +744,12 @@ mod tests {
                     position: 1,
                 },
             ],
-            edges: vec![
-                ContextEdge {
-                    source: "node-1".to_string(),
-                    target: "node-2".to_string(),
-                    edge_type: EdgeType::PromptResponse,
-                    weight: 1.0,
-                },
-            ],
+            edges: vec![ContextEdge {
+                source: "node-1".to_string(),
+                target: "node-2".to_string(),
+                edge_type: EdgeType::PromptResponse,
+                weight: 1.0,
+            }],
             summary: None,
             token_count: 10,
             retrieved_at: 0,
@@ -756,26 +768,22 @@ mod tests {
             name: "Test Agent".to_string(),
             config: AgentConfig::default(),
             status: AgentStatus::Completed,
-            actions: vec![
-                AgentAction {
-                    id: "action-1".to_string(),
-                    action_type: "search".to_string(),
-                    input: "query".to_string(),
-                    output: Some("results".to_string()),
-                    timestamp: 0,
-                },
-            ],
-            tool_invocations: vec![
-                ToolInvocation {
-                    id: "tool-1".to_string(),
-                    tool_name: "search".to_string(),
-                    input: "{}".to_string(),
-                    output: Some("{}".to_string()),
-                    execution_time_ms: 100.0,
-                    success: true,
-                    timestamp: 0,
-                },
-            ],
+            actions: vec![AgentAction {
+                id: "action-1".to_string(),
+                action_type: "search".to_string(),
+                input: "query".to_string(),
+                output: Some("results".to_string()),
+                timestamp: 0,
+            }],
+            tool_invocations: vec![ToolInvocation {
+                id: "tool-1".to_string(),
+                tool_name: "search".to_string(),
+                input: "{}".to_string(),
+                output: Some("{}".to_string()),
+                execution_time_ms: 100.0,
+                success: true,
+                timestamp: 0,
+            }],
             metrics: AgentMetrics::default(),
         };
 

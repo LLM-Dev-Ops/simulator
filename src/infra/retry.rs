@@ -131,7 +131,12 @@ pub struct Backoff {
 
 impl Backoff {
     /// Create a new backoff calculator
-    pub fn new(base_delay: Duration, max_delay: Duration, strategy: BackoffStrategy, jitter: f64) -> Self {
+    pub fn new(
+        base_delay: Duration,
+        max_delay: Duration,
+        strategy: BackoffStrategy,
+        jitter: f64,
+    ) -> Self {
         Self {
             base_delay,
             max_delay,
@@ -329,7 +334,11 @@ impl RetryPolicy {
     }
 
     /// Execute with retry but bail on non-retryable errors
-    pub async fn retry_if<T, E, F, Fut, P>(&self, mut operation: F, should_retry: P) -> Result<T, RetryError<E>>
+    pub async fn retry_if<T, E, F, Fut, P>(
+        &self,
+        mut operation: F,
+        should_retry: P,
+    ) -> Result<T, RetryError<E>>
     where
         F: FnMut() -> Fut,
         Fut: Future<Output = Result<T, E>>,
@@ -521,9 +530,17 @@ mod tests {
             .max_retries(2)
             .base_delay(Duration::from_millis(10));
 
-        let result: Result<(), RetryError<&str>> = policy.retry(|| async { Err("always fail") }).await;
+        let result: Result<(), RetryError<&str>> =
+            policy.retry(|| async { Err("always fail") }).await;
 
-        assert!(matches!(result, Err(RetryError::MaxRetriesExceeded { max: 2, attempts: 3, .. })));
+        assert!(matches!(
+            result,
+            Err(RetryError::MaxRetriesExceeded {
+                max: 2,
+                attempts: 3,
+                ..
+            })
+        ));
     }
 
     #[test]
@@ -566,7 +583,10 @@ mod tests {
             .await;
 
         // Should stop on non-retryable error
-        assert!(matches!(result, Err(RetryError::OperationFailed("not_retryable"))));
+        assert!(matches!(
+            result,
+            Err(RetryError::OperationFailed("not_retryable"))
+        ));
         assert_eq!(attempts.load(Ordering::SeqCst), 3);
     }
 }

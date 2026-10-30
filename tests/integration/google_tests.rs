@@ -8,7 +8,10 @@ async fn test_gemini_generate_content_basic() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/models/gemini-1.5-pro/generateContent", gemini_request("Hello!"))
+        .post(
+            "/v1/models/gemini-1.5-pro/generateContent",
+            gemini_request("Hello!"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -18,7 +21,7 @@ async fn test_gemini_generate_content_basic() {
     assert_json_field(&body, "usage_metadata");
 
     let candidates = body["candidates"].as_array().unwrap();
-    assert!(candidates.len() > 0);
+    assert!(!candidates.is_empty());
 }
 
 #[tokio::test]
@@ -26,7 +29,10 @@ async fn test_gemini_generate_content_flash() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/models/gemini-1.5-flash/generateContent", gemini_request("Quick test"))
+        .post(
+            "/v1/models/gemini-1.5-flash/generateContent",
+            gemini_request("Quick test"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -63,7 +69,10 @@ async fn test_gemini_beta_endpoint() {
 
     // v1beta endpoint should also work
     let response = server
-        .post("/v1beta/models/gemini-1.5-pro/generateContent", gemini_request("Test"))
+        .post(
+            "/v1beta/models/gemini-1.5-pro/generateContent",
+            gemini_request("Test"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -74,7 +83,10 @@ async fn test_gemini_usage_metadata() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/models/gemini-1.5-pro/generateContent", gemini_request("Test usage"))
+        .post(
+            "/v1/models/gemini-1.5-pro/generateContent",
+            gemini_request("Test usage"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);
@@ -92,7 +104,10 @@ async fn test_gemini_candidate_content() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/models/gemini-1.5-pro/generateContent", gemini_request("Hello"))
+        .post(
+            "/v1/models/gemini-1.5-pro/generateContent",
+            gemini_request("Hello"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 200);

@@ -3,16 +3,16 @@
 //! Provides a unified interface for different LLM API providers,
 //! handling request/response translation and provider-specific behaviors.
 
-mod openai;
 mod anthropic;
 mod google;
+mod openai;
 
-pub use openai::*;
 pub use anthropic::*;
 pub use google::*;
+pub use openai::*;
 
-use async_trait::async_trait;
 use crate::types::Provider;
+use async_trait::async_trait;
 
 /// Trait for provider implementations
 #[async_trait]
@@ -95,11 +95,7 @@ pub mod model_utils {
 
     /// Check if model is a chat model (vs completion, embedding, etc.)
     pub fn is_chat_model(model: &str) -> bool {
-        let chat_prefixes = [
-            "gpt-4", "gpt-3.5-turbo",
-            "claude-3", "claude-2",
-            "gemini",
-        ];
+        let chat_prefixes = ["gpt-4", "gpt-3.5-turbo", "claude-3", "claude-2", "gemini"];
 
         let lower = model.to_lowercase();
         chat_prefixes.iter().any(|p| lower.starts_with(p))
@@ -121,8 +117,14 @@ mod tests {
         let registry = ProviderRegistry::new();
 
         assert_eq!(registry.find_provider("gpt-4"), Some(Provider::OpenAI));
-        assert_eq!(registry.find_provider("claude-3-opus-20240229"), Some(Provider::Anthropic));
-        assert_eq!(registry.find_provider("gemini-1.5-pro"), Some(Provider::Google));
+        assert_eq!(
+            registry.find_provider("claude-3-opus-20240229"),
+            Some(Provider::Anthropic)
+        );
+        assert_eq!(
+            registry.find_provider("gemini-1.5-pro"),
+            Some(Provider::Google)
+        );
     }
 
     #[test]
@@ -134,7 +136,10 @@ mod tests {
     #[test]
     fn test_base_model() {
         assert_eq!(model_utils::base_model("gpt-4-0613"), "gpt-4");
-        assert_eq!(model_utils::base_model("gpt-4-turbo-preview"), "gpt-4-turbo");
+        assert_eq!(
+            model_utils::base_model("gpt-4-turbo-preview"),
+            "gpt-4-turbo"
+        );
         assert_eq!(model_utils::base_model("gpt-4"), "gpt-4");
     }
 

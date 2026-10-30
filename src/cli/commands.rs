@@ -2,22 +2,21 @@
 //!
 //! Implementations for all CLI subcommands.
 
-use std::io::{self, Write, BufRead};
+use std::io::{self, BufRead, Write};
 use std::path::PathBuf;
-use std::time::{Duration, Instant};
-use std::sync::atomic::{AtomicUsize, AtomicU64, Ordering};
+use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
 use std::sync::Arc;
+use std::time::{Duration, Instant};
 
-use anyhow::{Result, Context, bail};
+use anyhow::{bail, Context, Result};
 use tokio::sync::Semaphore;
 
-use crate::{SimulatorConfig, SimulationEngine, VERSION};
 use crate::types::*;
+use crate::{SimulationEngine, SimulatorConfig, VERSION};
 
 use super::{
-    Cli, Commands, ServeCommand, GenerateCommand, GenerateAction,
-    ConfigCommand, ConfigAction, HealthCommand, ModelsCommand,
-    BenchmarkCommand, ClientCommand, ClientAction, RunCommand,
+    BenchmarkCommand, Cli, ClientAction, ClientCommand, Commands, ConfigAction, ConfigCommand,
+    GenerateAction, GenerateCommand, HealthCommand, ModelsCommand, RunCommand, ServeCommand,
 };
 
 /// Execute the CLI command
@@ -91,7 +90,9 @@ async fn execute_serve(cmd: ServeCommand, mut config: SimulatorConfig, quiet: bo
     }
 
     // Validate configuration
-    config.validate().context("Configuration validation failed")?;
+    config
+        .validate()
+        .context("Configuration validation failed")?;
 
     // Print startup banner
     if !quiet {
@@ -127,17 +128,16 @@ async fn execute_generate(cmd: GenerateCommand, config: SimulatorConfig) -> Resu
             }
             messages.push(Message::user(&message));
 
-            let request = ChatCompletionRequest::new(model.clone(), messages)
-                .with_options(
-                    Some(temperature),
-                    None,
-                    Some(max_tokens),
-                    false,
-                    None,
-                    None,
-                    None,
-                    None,
-                );
+            let request = ChatCompletionRequest::new(model.clone(), messages).with_options(
+                Some(temperature),
+                None,
+                Some(max_tokens),
+                false,
+                None,
+                None,
+                None,
+                None,
+            );
 
             let response = engine.chat_completion(&request).await?;
 
@@ -195,7 +195,9 @@ async fn execute_generate(cmd: GenerateCommand, config: SimulatorConfig) -> Resu
                 }
                 "base64" => {
                     if let Some(data) = response.data.first() {
-                        let bytes: Vec<u8> = data.embedding.iter()
+                        let bytes: Vec<u8> = data
+                            .embedding
+                            .iter()
                             .flat_map(|f| f.to_le_bytes())
                             .collect();
                         let encoded = base64_encode(&bytes);
@@ -252,7 +254,11 @@ async fn execute_generate(cmd: GenerateCommand, config: SimulatorConfig) -> Resu
 }
 
 /// Execute the config command
-async fn execute_config(cmd: ConfigCommand, config: SimulatorConfig, _config_path: Option<PathBuf>) -> Result<()> {
+async fn execute_config(
+    cmd: ConfigCommand,
+    config: SimulatorConfig,
+    _config_path: Option<PathBuf>,
+) -> Result<()> {
     match cmd.action {
         ConfigAction::Show { format } => {
             let output = match format.as_str() {
@@ -269,14 +275,35 @@ async fn execute_config(cmd: ConfigCommand, config: SimulatorConfig, _config_pat
             config.validate()?;
             println!("Configuration at {:?} is valid", file);
             println!("  Models:    {}", config.models.len());
-            println!("  Latency:   {}", if config.latency.enabled { "enabled" } else { "disabled" });
-            println!("  Chaos:     {}", if config.chaos.enabled { "enabled" } else { "disabled" });
+            println!(
+                "  Latency:   {}",
+                if config.latency.enabled {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            );
+            println!(
+                "  Chaos:     {}",
+                if config.chaos.enabled {
+                    "enabled"
+                } else {
+                    "disabled"
+                }
+            );
             Ok(())
         }
 
-        ConfigAction::Init { output, preset, force } => {
+        ConfigAction::Init {
+            output,
+            preset,
+            force,
+        } => {
             if output.exists() && !force {
-                bail!("File {:?} already exists. Use --force to overwrite.", output);
+                bail!(
+                    "File {:?} already exists. Use --force to overwrite.",
+                    output
+                );
             }
 
             let config = match preset.as_str() {
@@ -299,7 +326,10 @@ async fn execute_config(cmd: ConfigCommand, config: SimulatorConfig, _config_pat
                         continue;
                     }
                 }
-                println!("{:40} {:10} ctx:{:>6}", id, model_config.provider, model_config.context_length);
+                println!(
+                    "{:40} {:10} ctx:{:>6}",
+                    id, model_config.provider, model_config.context_length
+                );
             }
             Ok(())
         }
@@ -307,21 +337,51 @@ async fn execute_config(cmd: ConfigCommand, config: SimulatorConfig, _config_pat
         ConfigAction::Env => {
             println!("Environment Variable Mappings:");
             println!();
-            println!("  {:<40} {}", "LLM_SIMULATOR_CONFIG", "Configuration file path");
-            println!("  {:<40} {}", "LLM_SIMULATOR_PORT", "Server port (default: 8080)");
-            println!("  {:<40} {}", "LLM_SIMULATOR_HOST", "Server host (default: 0.0.0.0)");
-            println!("  {:<40} {}", "LLM_SIMULATOR_CHAOS", "Enable chaos engineering");
-            println!("  {:<40} {}", "LLM_SIMULATOR_CHAOS_PROBABILITY", "Chaos probability (0.0-1.0)");
-            println!("  {:<40} {}", "LLM_SIMULATOR_NO_LATENCY", "Disable latency simulation");
-            println!("  {:<40} {}", "LLM_SIMULATOR_LATENCY_MULTIPLIER", "Latency multiplier");
-            println!("  {:<40} {}", "LLM_SIMULATOR_SEED", "Random seed for determinism");
-            println!("  {:<40} {}", "LLM_SIMULATOR_LOG_LEVEL", "Log level (trace/debug/info/warn/error)");
-            println!("  {:<40} {}", "LLM_SIMULATOR_JSON_LOGS", "Enable JSON log format");
-            println!("  {:<40} {}", "LLM_SIMULATOR_API_KEY", "API key for authentication");
-            println!("  {:<40} {}", "LLM_SIMULATOR_REQUIRE_AUTH", "Require API key authentication");
-            println!("  {:<40} {}", "LLM_SIMULATOR_MAX_CONCURRENT", "Max concurrent requests");
-            println!("  {:<40} {}", "LLM_SIMULATOR_TIMEOUT", "Request timeout (seconds)");
-            println!("  {:<40} {}", "OTEL_EXPORTER_OTLP_ENDPOINT", "OpenTelemetry OTLP endpoint");
+            println!("  {:<40} Configuration file path", "LLM_SIMULATOR_CONFIG");
+            println!("  {:<40} Server port (default: 8080)", "LLM_SIMULATOR_PORT");
+            println!(
+                "  {:<40} Server host (default: 0.0.0.0)",
+                "LLM_SIMULATOR_HOST"
+            );
+            println!("  {:<40} Enable chaos engineering", "LLM_SIMULATOR_CHAOS");
+            println!(
+                "  {:<40} Chaos probability (0.0-1.0)",
+                "LLM_SIMULATOR_CHAOS_PROBABILITY"
+            );
+            println!(
+                "  {:<40} Disable latency simulation",
+                "LLM_SIMULATOR_NO_LATENCY"
+            );
+            println!(
+                "  {:<40} Latency multiplier",
+                "LLM_SIMULATOR_LATENCY_MULTIPLIER"
+            );
+            println!("  {:<40} Random seed for determinism", "LLM_SIMULATOR_SEED");
+            println!(
+                "  {:<40} Log level (trace/debug/info/warn/error)",
+                "LLM_SIMULATOR_LOG_LEVEL"
+            );
+            println!("  {:<40} Enable JSON log format", "LLM_SIMULATOR_JSON_LOGS");
+            println!(
+                "  {:<40} API key for authentication",
+                "LLM_SIMULATOR_API_KEY"
+            );
+            println!(
+                "  {:<40} Require API key authentication",
+                "LLM_SIMULATOR_REQUIRE_AUTH"
+            );
+            println!(
+                "  {:<40} Max concurrent requests",
+                "LLM_SIMULATOR_MAX_CONCURRENT"
+            );
+            println!(
+                "  {:<40} Request timeout (seconds)",
+                "LLM_SIMULATOR_TIMEOUT"
+            );
+            println!(
+                "  {:<40} OpenTelemetry OTLP endpoint",
+                "OTEL_EXPORTER_OTLP_ENDPOINT"
+            );
             Ok(())
         }
     }
@@ -357,8 +417,13 @@ async fn execute_health(cmd: HealthCommand) -> Result<()> {
                     }
                     _ => {
                         let status_emoji = if status.is_success() { "✓" } else { "✗" };
-                        println!("{} {} - Status: {} - Latency: {:?}",
-                            status_emoji, url, status.as_u16(), latency);
+                        println!(
+                            "{} {} - Status: {} - Latency: {:?}",
+                            status_emoji,
+                            url,
+                            status.as_u16(),
+                            latency
+                        );
                         if let Some(health_status) = body.get("status") {
                             println!("  Health: {}", health_status);
                         }
@@ -366,7 +431,9 @@ async fn execute_health(cmd: HealthCommand) -> Result<()> {
                 }
 
                 if !cmd.watch {
-                    return if status.is_success() { Ok(()) } else {
+                    return if status.is_success() {
+                        Ok(())
+                    } else {
                         bail!("Health check failed with status {}", status)
                     };
                 }
@@ -409,7 +476,9 @@ async fn execute_models(cmd: ModelsCommand, config: SimulatorConfig) -> Result<(
             .json()
             .await?;
 
-        response.data.into_iter()
+        response
+            .data
+            .into_iter()
             .map(|m| ModelInfo {
                 id: m.id.clone(),
                 provider: m.owned_by.clone(),
@@ -419,7 +488,9 @@ async fn execute_models(cmd: ModelsCommand, config: SimulatorConfig) -> Result<(
             .collect()
     } else {
         // Use local configuration
-        config.models.iter()
+        config
+            .models
+            .iter()
             .map(|(id, mc)| {
                 let mut capabilities = vec!["chat".to_string()];
                 if mc.supports_streaming {
@@ -440,7 +511,8 @@ async fn execute_models(cmd: ModelsCommand, config: SimulatorConfig) -> Result<(
     };
 
     // Apply filters
-    let filtered: Vec<_> = models.into_iter()
+    let filtered: Vec<_> = models
+        .into_iter()
         .filter(|m| {
             if let Some(ref p) = cmd.provider {
                 if !m.provider.to_lowercase().contains(&p.to_lowercase()) {
@@ -465,11 +537,19 @@ async fn execute_models(cmd: ModelsCommand, config: SimulatorConfig) -> Result<(
         }
         _ => {
             // Table format
-            println!("{:<45} {:<12} {:>10} {}", "MODEL", "PROVIDER", "CONTEXT", "CAPABILITIES");
+            println!(
+                "{:<45} {:<12} {:>10} CAPABILITIES",
+                "MODEL", "PROVIDER", "CONTEXT"
+            );
             println!("{}", "-".repeat(90));
             for m in filtered {
-                println!("{:<45} {:<12} {:>10} {}",
-                    m.id, m.provider, m.context_length, m.capabilities.join(", "));
+                println!(
+                    "{:<45} {:<12} {:>10} {}",
+                    m.id,
+                    m.provider,
+                    m.context_length,
+                    m.capabilities.join(", ")
+                );
             }
         }
     }
@@ -488,10 +568,15 @@ async fn execute_benchmark(cmd: BenchmarkCommand) -> Result<()> {
     // Warmup
     eprintln!("Warming up with {} requests...", cmd.warmup);
     for _ in 0..cmd.warmup {
-        let _ = send_benchmark_request(&client, base_url, &cmd.model, &cmd.request_type, cmd.stream).await;
+        let _ =
+            send_benchmark_request(&client, base_url, &cmd.model, &cmd.request_type, cmd.stream)
+                .await;
     }
 
-    eprintln!("Running benchmark: {} requests, {} concurrent", cmd.requests, cmd.concurrency);
+    eprintln!(
+        "Running benchmark: {} requests, {} concurrent",
+        cmd.requests, cmd.concurrency
+    );
 
     let semaphore = Arc::new(Semaphore::new(cmd.concurrency));
     let success_count = Arc::new(AtomicUsize::new(0));
@@ -544,9 +629,18 @@ async fn execute_benchmark(cmd: BenchmarkCommand) -> Result<()> {
     let rps = success as f64 / elapsed.as_secs_f64();
 
     latencies.sort();
-    let p50 = latencies.get(latencies.len() / 2).copied().unwrap_or_default();
-    let p95 = latencies.get(latencies.len() * 95 / 100).copied().unwrap_or_default();
-    let p99 = latencies.get(latencies.len() * 99 / 100).copied().unwrap_or_default();
+    let p50 = latencies
+        .get(latencies.len() / 2)
+        .copied()
+        .unwrap_or_default();
+    let p95 = latencies
+        .get(latencies.len() * 95 / 100)
+        .copied()
+        .unwrap_or_default();
+    let p99 = latencies
+        .get(latencies.len() * 99 / 100)
+        .copied()
+        .unwrap_or_default();
 
     let avg_latency = if !latencies.is_empty() {
         Duration::from_micros(total_latency_us.load(Ordering::Relaxed) / latencies.len() as u64)
@@ -573,9 +667,18 @@ async fn execute_benchmark(cmd: BenchmarkCommand) -> Result<()> {
         }
         "csv" => {
             println!("requests,success,errors,duration_secs,rps,avg_ms,p50_ms,p95_ms,p99_ms");
-            println!("{},{},{},{:.2},{:.2},{},{},{},{}",
-                cmd.requests, success, errors, elapsed.as_secs_f64(), rps,
-                avg_latency.as_millis(), p50.as_millis(), p95.as_millis(), p99.as_millis());
+            println!(
+                "{},{},{},{:.2},{:.2},{},{},{},{}",
+                cmd.requests,
+                success,
+                errors,
+                elapsed.as_secs_f64(),
+                rps,
+                avg_latency.as_millis(),
+                p50.as_millis(),
+                p95.as_millis(),
+                p99.as_millis()
+            );
         }
         _ => {
             println!();
@@ -625,17 +728,25 @@ async fn execute_client(cmd: ClientCommand) -> Result<()> {
                 message
             };
 
-            let (endpoint, body) = build_chat_request(&provider, &model, &msg, system.as_deref(), max_tokens, temperature, stream);
+            let (endpoint, body) = build_chat_request(
+                &provider,
+                &model,
+                &msg,
+                system.as_deref(),
+                max_tokens,
+                temperature,
+                stream,
+            );
 
-            let mut req = client.post(format!("{}{}", base_url, endpoint))
-                .json(&body);
+            let mut req = client.post(format!("{}{}", base_url, endpoint)).json(&body);
 
             if let Some(key) = api_key {
                 req = req.header("Authorization", format!("Bearer {}", key));
             }
 
             if provider == "anthropic" {
-                req = req.header("x-api-key", "test-key")
+                req = req
+                    .header("x-api-key", "test-key")
                     .header("anthropic-version", "2023-06-01");
             }
 
@@ -677,7 +788,8 @@ async fn execute_client(cmd: ClientCommand) -> Result<()> {
                 "input": text,
             });
 
-            let mut req = client.post(format!("{}/v1/embeddings", base_url))
+            let mut req = client
+                .post(format!("{}/v1/embeddings", base_url))
                 .json(&body);
 
             if let Some(key) = api_key {
@@ -688,13 +800,11 @@ async fn execute_client(cmd: ClientCommand) -> Result<()> {
 
             if raw {
                 println!("{}", serde_json::to_string_pretty(&response)?);
-            } else {
-                if let Some(data) = response["data"].as_array() {
-                    if let Some(first) = data.first() {
-                        if let Some(embedding) = first["embedding"].as_array() {
-                            println!("Dimensions: {}", embedding.len());
-                            println!("First 5 values: {:?}", &embedding[..5.min(embedding.len())]);
-                        }
+            } else if let Some(data) = response["data"].as_array() {
+                if let Some(first) = data.first() {
+                    if let Some(embedding) = first["embedding"].as_array() {
+                        println!("Dimensions: {}", embedding.len());
+                        println!("First 5 values: {:?}", &embedding[..5.min(embedding.len())]);
                     }
                 }
             }
@@ -752,7 +862,8 @@ async fn execute_client(cmd: ClientCommand) -> Result<()> {
                     "messages": messages,
                 });
 
-                let mut req = client.post(format!("{}/v1/chat/completions", base_url))
+                let mut req = client
+                    .post(format!("{}/v1/chat/completions", base_url))
                     .json(&body);
 
                 if let Some(ref key) = api_key {
@@ -803,15 +914,15 @@ fn execute_version() -> Result<()> {
 /// Execute the run command (canonical benchmarks)
 async fn execute_run(cmd: RunCommand) -> Result<()> {
     use crate::benchmarks::{
-        run_all_benchmarks, run_benchmark, list_benchmarks,
-        generate_report, run_and_save_benchmarks,
+        generate_report, list_benchmarks, run_all_benchmarks, run_and_save_benchmarks,
+        run_benchmark,
     };
 
     // List available benchmarks
     if cmd.list {
         let benchmarks = list_benchmarks();
         println!("Available Benchmark Targets:\n");
-        println!("{:<30} {}", "TARGET ID", "DESCRIPTION");
+        println!("{:<30} DESCRIPTION", "TARGET ID");
         println!("{}", "-".repeat(70));
         for (id, desc) in benchmarks {
             println!("{:<30} {}", id, desc);
@@ -869,7 +980,10 @@ async fn execute_run(cmd: RunCommand) -> Result<()> {
 
             for result in &results {
                 println!("Target: {}", result.target_id);
-                println!("  Timestamp: {}", result.timestamp.format("%Y-%m-%d %H:%M:%S UTC"));
+                println!(
+                    "  Timestamp: {}",
+                    result.timestamp.format("%Y-%m-%d %H:%M:%S UTC")
+                );
 
                 if let Some(obj) = result.metrics.as_object() {
                     for (key, value) in obj {
@@ -912,7 +1026,8 @@ async fn execute_run(cmd: RunCommand) -> Result<()> {
 // Helper functions
 
 fn print_banner(config: &SimulatorConfig) {
-    println!(r#"
+    println!(
+        r#"
 ╔═══════════════════════════════════════════════════════════════╗
 ║                                                               ║
 ║   ██╗     ██╗     ███╗   ███╗   ███████╗██╗███╗   ███╗       ║
@@ -926,21 +1041,58 @@ fn print_banner(config: &SimulatorConfig) {
 ║   Enterprise-grade offline LLM API simulator                  ║
 ║                                                               ║
 ╚═══════════════════════════════════════════════════════════════╝
-"#, VERSION);
+"#,
+        VERSION
+    );
 
     println!("Configuration:");
-    println!("  • Server:    {}:{}", config.server.host, config.server.port);
+    println!(
+        "  • Server:    {}:{}",
+        config.server.host, config.server.port
+    );
     println!("  • Models:    {} configured", config.models.len());
-    println!("  • Latency:   {}", if config.latency.enabled { "enabled" } else { "disabled" });
-    println!("  • Chaos:     {}", if config.chaos.enabled { "enabled" } else { "disabled" });
-    println!("  • Seed:      {}", config.seed.map_or("random".to_string(), |s| s.to_string()));
+    println!(
+        "  • Latency:   {}",
+        if config.latency.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+    println!(
+        "  • Chaos:     {}",
+        if config.chaos.enabled {
+            "enabled"
+        } else {
+            "disabled"
+        }
+    );
+    println!(
+        "  • Seed:      {}",
+        config.seed.map_or("random".to_string(), |s| s.to_string())
+    );
     println!();
     println!("Endpoints:");
-    println!("  • OpenAI:    http://{}:{}/v1/chat/completions", config.server.host, config.server.port);
-    println!("  • Anthropic: http://{}:{}/v1/messages", config.server.host, config.server.port);
-    println!("  • Google:    http://{}:{}/v1/models/{{model}}:generateContent", config.server.host, config.server.port);
-    println!("  • Health:    http://{}:{}/health", config.server.host, config.server.port);
-    println!("  • Metrics:   http://{}:{}/metrics", config.server.host, config.server.port);
+    println!(
+        "  • OpenAI:    http://{}:{}/v1/chat/completions",
+        config.server.host, config.server.port
+    );
+    println!(
+        "  • Anthropic: http://{}:{}/v1/messages",
+        config.server.host, config.server.port
+    );
+    println!(
+        "  • Google:    http://{}:{}/v1/models/{{model}}:generateContent",
+        config.server.host, config.server.port
+    );
+    println!(
+        "  • Health:    http://{}:{}/health",
+        config.server.host, config.server.port
+    );
+    println!(
+        "  • Metrics:   http://{}:{}/metrics",
+        config.server.host, config.server.port
+    );
     println!();
 }
 
@@ -990,7 +1142,8 @@ async fn send_benchmark_request(
                 "model": "text-embedding-ada-002",
                 "input": "Hello, world!"
             });
-            client.post(format!("{}/v1/embeddings", base_url))
+            client
+                .post(format!("{}/v1/embeddings", base_url))
                 .json(&body)
                 .send()
                 .await?
@@ -1003,7 +1156,8 @@ async fn send_benchmark_request(
                 "max_tokens": 10,
                 "stream": stream
             });
-            client.post(format!("{}/v1/chat/completions", base_url))
+            client
+                .post(format!("{}/v1/chat/completions", base_url))
                 .json(&body)
                 .send()
                 .await?
@@ -1077,32 +1231,26 @@ fn build_chat_request(
 
 fn extract_content(provider: &str, body: &serde_json::Value) -> String {
     match provider {
-        "anthropic" => {
-            body["content"]
-                .as_array()
-                .and_then(|arr| arr.first())
-                .and_then(|c| c["text"].as_str())
-                .unwrap_or("")
-                .to_string()
-        }
-        "google" => {
-            body["candidates"]
-                .as_array()
-                .and_then(|arr| arr.first())
-                .and_then(|c| c["content"]["parts"].as_array())
-                .and_then(|parts| parts.first())
-                .and_then(|p| p["text"].as_str())
-                .unwrap_or("")
-                .to_string()
-        }
-        _ => {
-            body["choices"]
-                .as_array()
-                .and_then(|arr| arr.first())
-                .and_then(|c| c["message"]["content"].as_str())
-                .unwrap_or("")
-                .to_string()
-        }
+        "anthropic" => body["content"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|c| c["text"].as_str())
+            .unwrap_or("")
+            .to_string(),
+        "google" => body["candidates"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|c| c["content"]["parts"].as_array())
+            .and_then(|parts| parts.first())
+            .and_then(|p| p["text"].as_str())
+            .unwrap_or("")
+            .to_string(),
+        _ => body["choices"]
+            .as_array()
+            .and_then(|arr| arr.first())
+            .and_then(|c| c["message"]["content"].as_str())
+            .unwrap_or("")
+            .to_string(),
     }
 }
 

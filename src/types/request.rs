@@ -1,7 +1,7 @@
 //! Request types for LLM APIs
 
-use serde::{Deserialize, Serialize};
 use super::{Message, ResponseFormat, Tool};
+use serde::{Deserialize, Serialize};
 
 /// Chat completion request (OpenAI-compatible)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -70,6 +70,8 @@ impl ChatCompletionRequest {
     }
 
     /// Configure options via a builder-style method
+    // Retained for source compatibility; callers can set the full OpenAI option group at once.
+    #[allow(clippy::too_many_arguments)]
     pub fn with_options(
         mut self,
         temperature: Option<f32>,
@@ -237,12 +239,11 @@ impl AnthropicContent {
     pub fn text(&self) -> String {
         match self {
             Self::Text(t) => t.clone(),
-            Self::Blocks(blocks) => {
-                blocks.iter()
-                    .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
-                    .collect::<Vec<_>>()
-                    .join("")
-            }
+            Self::Blocks(blocks) => blocks
+                .iter()
+                .filter_map(|b| b.get("text").and_then(|t| t.as_str()))
+                .collect::<Vec<_>>()
+                .join(""),
         }
     }
 }
@@ -312,6 +313,9 @@ mod tests {
         assert_eq!(single.to_vec(), vec!["stop".to_string()]);
 
         let multiple: StopSequence = serde_json::from_str(r#"["stop", "end"]"#).unwrap();
-        assert_eq!(multiple.to_vec(), vec!["stop".to_string(), "end".to_string()]);
+        assert_eq!(
+            multiple.to_vec(),
+            vec!["stop".to_string(), "end".to_string()]
+        );
     }
 }

@@ -2,7 +2,7 @@
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion};
 use llm_simulator::config::{LatencyConfig, LatencyDistribution};
-use llm_simulator::latency::{LatencySimulator, DistributionSampler};
+use llm_simulator::latency::{DistributionSampler, LatencySimulator};
 
 fn bench_distribution_sampling(c: &mut Criterion) {
     let sampler = DistributionSampler::with_seed(42);
@@ -11,18 +11,14 @@ fn bench_distribution_sampling(c: &mut Criterion) {
 
     // Fixed distribution
     let fixed = LatencyDistribution::Fixed { value_ms: 100.0 };
-    group.bench_function("fixed", |b| {
-        b.iter(|| black_box(sampler.sample(&fixed)))
-    });
+    group.bench_function("fixed", |b| b.iter(|| black_box(sampler.sample(&fixed))));
 
     // Normal distribution
     let normal = LatencyDistribution::Normal {
         mean_ms: 100.0,
         std_dev_ms: 20.0,
     };
-    group.bench_function("normal", |b| {
-        b.iter(|| black_box(sampler.sample(&normal)))
-    });
+    group.bench_function("normal", |b| b.iter(|| black_box(sampler.sample(&normal))));
 
     // Log-normal distribution
     let log_normal = LatencyDistribution::LogNormal {
@@ -53,9 +49,7 @@ fn bench_distribution_sampling(c: &mut Criterion) {
         scale_ms: 10.0,
         shape: 2.0,
     };
-    group.bench_function("pareto", |b| {
-        b.iter(|| black_box(sampler.sample(&pareto)))
-    });
+    group.bench_function("pareto", |b| b.iter(|| black_box(sampler.sample(&pareto))));
 
     group.finish();
 }

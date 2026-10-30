@@ -2,7 +2,7 @@
 
 Enterprise-grade offline LLM API simulator for testing and development.
 
-[![Rust](https://img.shields.io/badge/rust-1.75%2B-orange.svg)](https://www.rust-lang.org/)
+[![Rust](https://img.shields.io/badge/rust-1.83%2B-orange.svg)](https://www.rust-lang.org/)
 [![License](https://img.shields.io/badge/license-LLM--DevOps-blue.svg)](LICENSE)
 
 ## Overview
@@ -59,7 +59,7 @@ cargo build --release
 ```
 
 ### Requirements
-- Rust 1.75 or later
+- Rust 1.83 or later
 - Linux, macOS, or Windows
 
 ## Quick Start
@@ -358,7 +358,13 @@ seed: null  # Set for deterministic behavior
 | `LLM_SIMULATOR_JSON_LOGS` | JSON log format | `false` |
 | `LLM_SIMULATOR_REQUIRE_AUTH` | Require auth | `false` |
 | `LLM_SIMULATOR_API_KEY` | API key | - |
+| `CORS_ALLOWED_ORIGINS` | Cloud Function browser origins, comma-separated and exact-match | Browser access disabled |
 | `OTEL_EXPORTER_OTLP_ENDPOINT` | OTLP endpoint | - |
+
+`CORS_ALLOWED_ORIGINS` accepts origins only (for example,
+`https://console.example.com,https://admin.example.com`), not URL paths. Requests
+without an `Origin` header continue to work for server-to-server clients. Browser
+origins not in the list receive no CORS permission headers.
 
 ## Supported Models
 

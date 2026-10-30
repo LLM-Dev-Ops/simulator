@@ -19,15 +19,15 @@
 //! - MAX_TOKENS: 2500
 //! - MAX_LATENCY_MS: 5000
 
-use std::sync::Arc;
-use std::time::{Duration, Instant};
 use async_trait::async_trait;
 use parking_lot::RwLock;
 use serde::{Deserialize, Serialize};
-use tracing::{info, warn, instrument};
+use std::sync::Arc;
+use std::time::Instant;
+use tracing::{info, instrument};
 
-use crate::adapters::ruvvector::{RuvVectorAdapter, RuvVectorConsumer, RuvVectorError};
-use crate::infra::{Cache, CacheConfig, RetryPolicy, RetryConfig};
+use crate::adapters::ruvvector::{RuvVectorConsumer, RuvVectorError};
+use crate::infra::{Cache, CacheConfig, RetryConfig, RetryPolicy};
 
 // ============================================================================
 // Performance Budget Constants
@@ -91,7 +91,7 @@ pub struct DecisionSignal {
 
 /// Payload variants for different signal types
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(tag = "type", content = "data")]
+#[serde(tag = "type", content = "data", rename_all = "snake_case")]
 pub enum SignalPayload {
     /// Hypothesis signal payload
     Hypothesis(HypothesisPayload),
@@ -292,7 +292,11 @@ impl std::fmt::Display for IntelligenceError {
                 write!(f, "Token budget exceeded: {} > {} max", used, max)
             }
             Self::LatencyBudgetExceeded { latency_ms, max_ms } => {
-                write!(f, "Latency budget exceeded: {}ms > {}ms max", latency_ms, max_ms)
+                write!(
+                    f,
+                    "Latency budget exceeded: {}ms > {}ms max",
+                    latency_ms, max_ms
+                )
             }
             Self::InvalidInput(msg) => write!(f, "Invalid input: {}", msg),
             Self::Internal(msg) => write!(f, "Internal error: {}", msg),
@@ -317,8 +321,8 @@ impl From<RuvVectorError> for IntelligenceError {
 pub struct IntelligenceAdapter {
     config: IntelligenceConfig,
     ruvvector: Arc<dyn RuvVectorConsumer>,
-    cache: Option<Cache>,
-    retry_policy: RetryPolicy,
+    _cache: Option<Cache>,
+    _retry_policy: RetryPolicy,
     stats: Arc<RwLock<IntelligenceStats>>,
 }
 
@@ -351,9 +355,11 @@ impl IntelligenceAdapter {
         };
 
         let retry_policy = if config.retry_enabled {
-            let mut retry_config = RetryConfig::default();
-            retry_config.max_retries = config.max_retries;
-            retry_config.base_delay_ms = 100;
+            let retry_config = RetryConfig {
+                max_retries: config.max_retries,
+                base_delay_ms: 100,
+                ..Default::default()
+            };
             RetryPolicy::from_config(&retry_config)
         } else {
             RetryPolicy::new()
@@ -362,8 +368,8 @@ impl IntelligenceAdapter {
         Ok(Self {
             config,
             ruvvector,
-            cache,
-            retry_policy,
+            _cache: cache,
+            _retry_policy: retry_policy,
             stats: Arc::new(RwLock::new(IntelligenceStats::default())),
         })
     }
@@ -434,12 +440,14 @@ impl IntelligenceConsumer for IntelligenceAdapter {
         let query_result = self.ruvvector.query(&query_request).await?;
 
         // Build hypothesis from RuvVector results
-        let evidence: Vec<String> = query_result.results
+        let evidence: Vec<String> = query_result
+            .results
             .iter()
             .filter_map(|r| r.content.clone())
             .collect();
 
-        let confidence = query_result.results
+        let confidence = query_result
+            .results
             .first()
             .map(|r| r.score as f64)
             .unwrap_or(0.5);
@@ -504,8 +512,7 @@ impl IntelligenceConsumer for IntelligenceAdapter {
             input: crate::adapters::ruvvector::SimulateInput::Messages(vec![
                 crate::adapters::ruvvector::SimulateMessage {
                     role: "user".to_string(),
-                    content: serde_json::to_string(&scenario.parameters)
-                        .unwrap_or_default(),
+                    content: serde_json::to_string(&scenario.parameters).unwrap_or_default(),
                 },
             ]),
             parameters: Some(crate::adapters::ruvvector::SimulateParameters {
@@ -591,12 +598,14 @@ impl IntelligenceConsumer for IntelligenceAdapter {
         let query_result = self.ruvvector.query(&query_request).await?;
 
         // Calculate confidence delta based on state changes
-        let previous_confidence: f64 = assessment.previous_state
+        let previous_confidence: f64 = assessment
+            .previous_state
             .get("confidence")
             .and_then(|v| v.as_f64())
             .unwrap_or(0.5);
 
-        let current_confidence: f64 = query_result.results
+        let current_confidence: f64 = query_result
+            .results
             .first()
             .map(|r| r.score as f64)
             .unwrap_or(previous_confidence);
@@ -694,8 +703,11 @@ impl FeuIntelligenceConsumer for IntelligenceAdapter {
         context: &ReasoningContext,
         collector: &mut FeuSpanCollector,
     ) -> Result<DecisionSignal, IntelligenceError> {
-        let span_id = collector.begin_agent_span("intelligence")
-            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| IntelligenceError::Internal(e.to_string()))?;
+        let span_id = collector.begin_agent_span("intelligence").map_err(
+            |e: crate::telemetry::tracing_ext::FeuValidationError| {
+                IntelligenceError::Internal(e.to_string())
+            },
+        )?;
 
         match self.emit_hypothesis(context).await {
             Ok(signal) => {
@@ -720,8 +732,11 @@ impl FeuIntelligenceConsumer for IntelligenceAdapter {
         scenario: &SimulationScenario,
         collector: &mut FeuSpanCollector,
     ) -> Result<DecisionSignal, IntelligenceError> {
-        let span_id = collector.begin_agent_span("intelligence")
-            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| IntelligenceError::Internal(e.to_string()))?;
+        let span_id = collector.begin_agent_span("intelligence").map_err(
+            |e: crate::telemetry::tracing_ext::FeuValidationError| {
+                IntelligenceError::Internal(e.to_string())
+            },
+        )?;
 
         match self.emit_simulation_outcome(scenario).await {
             Ok(signal) => {
@@ -746,8 +761,11 @@ impl FeuIntelligenceConsumer for IntelligenceAdapter {
         assessment: &ConfidenceAssessment,
         collector: &mut FeuSpanCollector,
     ) -> Result<DecisionSignal, IntelligenceError> {
-        let span_id = collector.begin_agent_span("intelligence")
-            .map_err(|e: crate::telemetry::tracing_ext::FeuValidationError| IntelligenceError::Internal(e.to_string()))?;
+        let span_id = collector.begin_agent_span("intelligence").map_err(
+            |e: crate::telemetry::tracing_ext::FeuValidationError| {
+                IntelligenceError::Internal(e.to_string())
+            },
+        )?;
 
         match self.emit_confidence_delta(assessment).await {
             Ok(signal) => {
@@ -816,7 +834,10 @@ mod tests {
 
     #[test]
     fn test_intelligence_error_display() {
-        let err = IntelligenceError::TokenBudgetExceeded { used: 3000, max: 2500 };
+        let err = IntelligenceError::TokenBudgetExceeded {
+            used: 3000,
+            max: 2500,
+        };
         assert!(err.to_string().contains("3000"));
         assert!(err.to_string().contains("2500"));
     }

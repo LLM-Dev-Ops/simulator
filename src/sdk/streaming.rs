@@ -6,8 +6,8 @@ use futures::stream::{Stream, StreamExt};
 use std::pin::Pin;
 use std::task::{Context, Poll};
 
-use crate::types::*;
 use super::{Client, SdkError, SdkResult};
+use crate::types::*;
 
 /// Streaming chat builder
 pub struct StreamingChat {
@@ -65,31 +65,31 @@ impl StreamingChat {
 
     /// Start streaming and return a stream of chunks
     pub async fn start(self) -> SdkResult<ChatStream> {
-        let model = self.model.ok_or_else(|| {
-            SdkError::InvalidRequest("Model is required".to_string())
-        })?;
+        let model = self
+            .model
+            .ok_or_else(|| SdkError::InvalidRequest("Model is required".to_string()))?;
 
         if self.messages.is_empty() {
-            return Err(SdkError::InvalidRequest("At least one message is required".to_string()));
+            return Err(SdkError::InvalidRequest(
+                "At least one message is required".to_string(),
+            ));
         }
 
-        let request = ChatCompletionRequest::new(model.clone(), self.messages)
-            .with_options(
-                self.temperature,
-                None, // top_p
-                self.max_tokens,
-                true, // stream
-                None, // frequency_penalty
-                None, // presence_penalty
-                None, // stop
-                None, // user
-            );
+        let request = ChatCompletionRequest::new(model.clone(), self.messages).with_options(
+            self.temperature,
+            None, // top_p
+            self.max_tokens,
+            true, // stream
+            None, // frequency_penalty
+            None, // presence_penalty
+            None, // stop
+            None, // user
+        );
 
         let endpoint = self.client.config().provider.chat_endpoint(&model);
         let url = format!("{}{}", self.client.config().base_url, endpoint);
 
-        let mut req = self.client.http_client().post(&url)
-            .json(&request);
+        let mut req = self.client.http_client().post(&url).json(&request);
 
         if let Some(ref key) = self.client.config().api_key {
             req = req.header("Authorization", format!("Bearer {}", key));

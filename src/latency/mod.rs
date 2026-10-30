@@ -7,8 +7,8 @@ mod sampler;
 
 pub use sampler::*;
 
-use std::time::Duration;
 use crate::config::{LatencyConfig, LatencyProfile};
+use std::time::Duration;
 
 /// Latency simulator that generates realistic timing
 #[derive(Debug, Clone)]
@@ -92,7 +92,11 @@ impl LatencySimulator {
     }
 
     /// Generate a complete latency schedule for a streaming response
-    pub fn generate_schedule(&self, token_count: usize, profile_name: Option<&str>) -> LatencySchedule {
+    pub fn generate_schedule(
+        &self,
+        token_count: usize,
+        profile_name: Option<&str>,
+    ) -> LatencySchedule {
         let ttft = self.sample_ttft(profile_name);
         let overhead = self.overhead(profile_name);
 
@@ -156,7 +160,10 @@ impl LatencySchedule {
         if index == 0 {
             self.ttft + self.overhead
         } else {
-            self.token_delays.get(index).copied().unwrap_or(Duration::ZERO)
+            self.token_delays
+                .get(index)
+                .copied()
+                .unwrap_or(Duration::ZERO)
         }
     }
 
@@ -228,8 +235,10 @@ mod tests {
 
     #[test]
     fn test_disabled_simulator() {
-        let mut config = LatencyConfig::default();
-        config.enabled = false;
+        let config = LatencyConfig {
+            enabled: false,
+            ..Default::default()
+        };
         let sim = LatencySimulator::new(config);
 
         assert_eq!(sim.sample_ttft(None), Duration::ZERO);
@@ -266,12 +275,13 @@ mod tests {
 
     #[test]
     fn test_multiplier() {
-        let mut config = LatencyConfig::default();
-        config.multiplier = 2.0;
-        let sim_2x = LatencySimulator::with_seed(config.clone(), 42);
+        let config_2x = LatencyConfig {
+            multiplier: 2.0,
+            ..Default::default()
+        };
+        let sim_2x = LatencySimulator::with_seed(config_2x, 42);
 
-        config.multiplier = 1.0;
-        let sim_1x = LatencySimulator::with_seed(config, 42);
+        let sim_1x = LatencySimulator::with_seed(LatencyConfig::default(), 42);
 
         // 2x multiplier should approximately double the latency
         let ttft_1x = sim_1x.sample_ttft(Some("instant"));

@@ -8,7 +8,7 @@ license = "LicenseRef-LLM-DevOps"
 repository = "https://github.com/llm-devops/llm-simulator"
 keywords = ["llm", "simulator", "testing", "api", "openai"]
 categories = ["development-tools", "simulation", "web-programming"]
-rust-version = "1.75"
+rust-version = "1.83"
 
 [features]
 default = []
@@ -87,9 +87,9 @@ validator = { version = "0.16", features = ["derive"] }
 
 # LLM-Dev-Ops Phase 2B Dependencies (compile-time only, optional features)
 # These are gated behind feature flags due to upstream compilation status
-llm-latency-lens-core = { git = "https://github.com/LLM-Dev-Ops/latency-lens", branch = "main", optional = true }
-llm-observatory-core = { git = "https://github.com/LLM-Dev-Ops/observatory", branch = "main", optional = true }
-llm-memory-graph = { git = "https://github.com/LLM-Dev-Ops/memory-graph", branch = "main", optional = true }
+llm-latency-lens-core = { git = "https://github.com/LLM-Dev-Ops/latency-lens", rev = "22b825ef309c2cbb14e1ba528945b853c3aeccde", optional = true }
+llm-observatory-core = { git = "https://github.com/LLM-Dev-Ops/observatory", rev = "6813701693cc85094ea6c52cb00ad4911446b096", optional = true }
+llm-memory-graph = { git = "https://github.com/LLM-Dev-Ops/memory-graph", rev = "9acd0228098df03b50361769993571fa5ab549bf", optional = true }
 
 # HTTP client (for health checks and SDK)
 reqwest = { version = "0.11", default-features = false, features = ["json", "rustls-tls", "stream"] }

@@ -5,7 +5,6 @@
 //! - Role-based access control
 //! - Key rotation without restart
 
-use std::sync::Arc;
 use axum::{
     extract::{Request, State},
     http::{HeaderMap, StatusCode},
@@ -13,6 +12,7 @@ use axum::{
     response::{IntoResponse, Response},
     Json,
 };
+use std::sync::Arc;
 use tracing::{info, warn};
 
 use crate::config::security::{ApiKeyConfig, ApiKeyEntry, ApiKeyRole};
@@ -75,7 +75,10 @@ pub enum AuthError {
     /// Key is disabled
     KeyDisabled,
     /// Insufficient permissions
-    InsufficientPermissions { required: ApiKeyRole, actual: ApiKeyRole },
+    InsufficientPermissions {
+        required: ApiKeyRole,
+        actual: ApiKeyRole,
+    },
 }
 
 impl IntoResponse for AuthError {
@@ -101,7 +104,10 @@ impl IntoResponse for AuthError {
                 "authentication_error",
                 "API key is disabled",
             ),
-            Self::InsufficientPermissions { required: _, actual: _ } => (
+            Self::InsufficientPermissions {
+                required: _,
+                actual: _,
+            } => (
                 StatusCode::FORBIDDEN,
                 "permission_error",
                 "Insufficient permissions",
@@ -167,25 +173,23 @@ pub async fn api_key_auth_middleware(
     }
 
     // Extract API key from headers
-    let api_key = extract_api_key(request.headers())
-        .ok_or(AuthError::MissingHeader)?;
+    let api_key = extract_api_key(request.headers()).ok_or(AuthError::MissingHeader)?;
 
     // Validate the key
-    let key_entry = config.find_key(&api_key)
-        .ok_or_else(|| {
-            // Log with only key prefix for security
-            let key_prefix = if api_key.len() > 8 {
-                &api_key[..8]
-            } else {
-                &api_key
-            };
-            warn!(
-                key_prefix = %key_prefix,
-                path = %path,
-                "Invalid API key attempt"
-            );
-            AuthError::InvalidKey
-        })?;
+    let key_entry = config.find_key(&api_key).ok_or_else(|| {
+        // Log with only key prefix for security
+        let key_prefix = if api_key.len() > 8 {
+            &api_key[..8]
+        } else {
+            &api_key
+        };
+        warn!(
+            key_prefix = %key_prefix,
+            path = %path,
+            "Invalid API key attempt"
+        );
+        AuthError::InvalidKey
+    })?;
 
     // Check if key is enabled
     if !key_entry.enabled {
@@ -231,7 +235,9 @@ pub async fn admin_auth_middleware(
     }
 
     // Get key info from extensions
-    let key_info = request.extensions().get::<ApiKeyInfo>()
+    let key_info = request
+        .extensions()
+        .get::<ApiKeyInfo>()
         .cloned()
         .unwrap_or_else(ApiKeyInfo::anonymous);
 
@@ -273,7 +279,10 @@ mod tests {
     #[test]
     fn test_extract_api_key_bearer() {
         let mut headers = HeaderMap::new();
-        headers.insert("authorization", HeaderValue::from_static("Bearer sk-test-key-123"));
+        headers.insert(
+            "authorization",
+            HeaderValue::from_static("Bearer sk-test-key-123"),
+        );
 
         let key = extract_api_key(&headers);
         assert_eq!(key, Some("sk-test-key-123".to_string()));

@@ -17,11 +17,11 @@
 //! let profile = adapter.consume_latency_profile("gpt-4").await?;
 //! ```
 
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 
 /// Latency profile data consumed from LLM-Latency-Lens
 #[derive(Debug, Clone, Serialize, Deserialize)]

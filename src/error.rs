@@ -201,10 +201,8 @@ impl SimulationError {
     pub fn to_error_response(&self) -> ErrorResponse {
         let mut response = ErrorResponse::new(self.error_type(), &self.to_string());
 
-        if let Self::Validation { param, .. } = self {
-            if let Some(p) = param {
-                response = response.with_param(p);
-            }
+        if let Self::Validation { param: Some(p), .. } = self {
+            response = response.with_param(p);
         }
 
         if let Self::RateLimitExceeded { .. } = self {
@@ -231,11 +229,14 @@ impl IntoResponse for SimulationError {
         }
 
         // Add retry-after header for RuvVector unavailable
-        if let SimulationError::RuvVectorUnavailable { retry_after_secs: Some(secs), .. } = &self {
-            response.headers_mut().insert(
-                "retry-after",
-                secs.to_string().parse().unwrap(),
-            );
+        if let SimulationError::RuvVectorUnavailable {
+            retry_after_secs: Some(secs),
+            ..
+        } = &self
+        {
+            response
+                .headers_mut()
+                .insert("retry-after", secs.to_string().parse().unwrap());
         }
 
         response

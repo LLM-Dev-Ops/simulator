@@ -58,11 +58,11 @@ impl ResponseGenerator {
             crate::config::GenerationStrategy::Echo => {
                 self.generate_echo(messages, target_tokens as usize)
             }
-            crate::config::GenerationStrategy::Fixed => {
-                config.templates.first()
-                    .cloned()
-                    .unwrap_or_else(|| "This is a simulated response.".to_string())
-            }
+            crate::config::GenerationStrategy::Fixed => config
+                .templates
+                .first()
+                .cloned()
+                .unwrap_or_else(|| "This is a simulated response.".to_string()),
             crate::config::GenerationStrategy::Random => {
                 generate_random_text(target_tokens as usize, &mut rng)
             }
@@ -121,7 +121,8 @@ impl ResponseGenerator {
         let paragraphs = if last_message.contains('?') {
             QUESTION_RESPONSES
         } else if last_message.to_lowercase().contains("code")
-            || last_message.to_lowercase().contains("program") {
+            || last_message.to_lowercase().contains("program")
+        {
             CODE_RESPONSES
         } else if last_message.to_lowercase().contains("explain") {
             EXPLANATION_RESPONSES
@@ -134,9 +135,7 @@ impl ResponseGenerator {
 
     /// Generate echo response
     fn generate_echo(&self, messages: &[Message], target_tokens: usize) -> String {
-        let last_message = messages.last()
-            .map(|m| m.text())
-            .unwrap_or_default();
+        let last_message = messages.last().map(|m| m.text()).unwrap_or_default();
 
         let response = format!(
             "I understand you're asking about: \"{}\"\n\nHere's my response to that:",
@@ -146,10 +145,8 @@ impl ResponseGenerator {
         // Pad to target length
         let target_chars = target_tokens * 4;
         if response.len() < target_chars {
-            let padding = generate_lorem(
-                (target_chars - response.len()) / 4,
-                &mut rand::thread_rng(),
-            );
+            let padding =
+                generate_lorem((target_chars - response.len()) / 4, &mut rand::thread_rng());
             format!("{}\n\n{}", response, padding)
         } else {
             response
@@ -164,9 +161,7 @@ impl ResponseGenerator {
         let seed = hasher.finish();
 
         let mut rng = StdRng::seed_from_u64(seed);
-        let mut embedding: Vec<f32> = (0..dimensions)
-            .map(|_| rng.gen_range(-1.0..1.0))
-            .collect();
+        let mut embedding: Vec<f32> = (0..dimensions).map(|_| rng.gen_range(-1.0..1.0)).collect();
 
         // Normalize to unit vector
         let magnitude: f32 = embedding.iter().map(|x| x * x).sum::<f32>().sqrt();
@@ -187,11 +182,11 @@ impl ResponseGenerator {
         for c in text.chars() {
             current.push(c);
             // Split on spaces, punctuation, or every ~4 chars
-            if c.is_whitespace() || c.is_ascii_punctuation() || current.len() >= 4 {
-                if !current.is_empty() {
-                    tokens.push(current.clone());
-                    current.clear();
-                }
+            if (c.is_whitespace() || c.is_ascii_punctuation() || current.len() >= 4)
+                && !current.is_empty()
+            {
+                tokens.push(current.clone());
+                current.clear();
             }
         }
 
@@ -218,14 +213,68 @@ fn estimate_tokens(text: &str) -> u32 {
 /// Generate lorem ipsum text
 fn generate_lorem<R: rand::Rng>(target_tokens: usize, rng: &mut R) -> String {
     let words = [
-        "lorem", "ipsum", "dolor", "sit", "amet", "consectetur", "adipiscing", "elit",
-        "sed", "do", "eiusmod", "tempor", "incididunt", "ut", "labore", "et", "dolore",
-        "magna", "aliqua", "enim", "ad", "minim", "veniam", "quis", "nostrud",
-        "exercitation", "ullamco", "laboris", "nisi", "aliquip", "ex", "ea", "commodo",
-        "consequat", "duis", "aute", "irure", "in", "reprehenderit", "voluptate",
-        "velit", "esse", "cillum", "fugiat", "nulla", "pariatur", "excepteur", "sint",
-        "occaecat", "cupidatat", "non", "proident", "sunt", "culpa", "qui", "officia",
-        "deserunt", "mollit", "anim", "id", "est", "laborum",
+        "lorem",
+        "ipsum",
+        "dolor",
+        "sit",
+        "amet",
+        "consectetur",
+        "adipiscing",
+        "elit",
+        "sed",
+        "do",
+        "eiusmod",
+        "tempor",
+        "incididunt",
+        "ut",
+        "labore",
+        "et",
+        "dolore",
+        "magna",
+        "aliqua",
+        "enim",
+        "ad",
+        "minim",
+        "veniam",
+        "quis",
+        "nostrud",
+        "exercitation",
+        "ullamco",
+        "laboris",
+        "nisi",
+        "aliquip",
+        "ex",
+        "ea",
+        "commodo",
+        "consequat",
+        "duis",
+        "aute",
+        "irure",
+        "in",
+        "reprehenderit",
+        "voluptate",
+        "velit",
+        "esse",
+        "cillum",
+        "fugiat",
+        "nulla",
+        "pariatur",
+        "excepteur",
+        "sint",
+        "occaecat",
+        "cupidatat",
+        "non",
+        "proident",
+        "sunt",
+        "culpa",
+        "qui",
+        "officia",
+        "deserunt",
+        "mollit",
+        "anim",
+        "id",
+        "est",
+        "laborum",
     ];
 
     let mut result = Vec::new();
@@ -262,12 +311,57 @@ fn generate_lorem<R: rand::Rng>(target_tokens: usize, rng: &mut R) -> String {
 /// Generate random text from a vocabulary
 fn generate_random_text(target_tokens: usize, rng: &mut StdRng) -> String {
     let vocab = [
-        "the", "a", "is", "are", "was", "were", "have", "has", "had", "do", "does",
-        "did", "will", "would", "could", "should", "may", "might", "must", "can",
-        "this", "that", "these", "those", "it", "they", "we", "you", "he", "she",
-        "system", "data", "model", "process", "function", "result", "value", "type",
-        "input", "output", "request", "response", "error", "success", "status",
-        "configuration", "parameter", "option", "setting", "property", "attribute",
+        "the",
+        "a",
+        "is",
+        "are",
+        "was",
+        "were",
+        "have",
+        "has",
+        "had",
+        "do",
+        "does",
+        "did",
+        "will",
+        "would",
+        "could",
+        "should",
+        "may",
+        "might",
+        "must",
+        "can",
+        "this",
+        "that",
+        "these",
+        "those",
+        "it",
+        "they",
+        "we",
+        "you",
+        "he",
+        "she",
+        "system",
+        "data",
+        "model",
+        "process",
+        "function",
+        "result",
+        "value",
+        "type",
+        "input",
+        "output",
+        "request",
+        "response",
+        "error",
+        "success",
+        "status",
+        "configuration",
+        "parameter",
+        "option",
+        "setting",
+        "property",
+        "attribute",
     ];
 
     let words: Vec<&str> = (0..target_tokens)
@@ -364,7 +458,7 @@ mod tests {
         };
 
         let (response, _) = gen.generate_response(&messages, 100, &config);
-        assert!(response.to_lowercase().contains("lorem") || response.len() > 0);
+        assert!(response.to_lowercase().contains("lorem") || !response.is_empty());
     }
 
     #[test]

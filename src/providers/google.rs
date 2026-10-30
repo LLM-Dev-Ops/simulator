@@ -1,8 +1,8 @@
 //! Google provider implementation
 
-use async_trait::async_trait;
-use crate::types::Provider;
 use super::ProviderHandler;
+use crate::types::Provider;
+use async_trait::async_trait;
 
 /// Google/Gemini API handler
 pub struct GoogleHandler {
@@ -61,8 +61,7 @@ impl ProviderHandler for GoogleHandler {
     }
 
     fn supports_model(&self, model: &str) -> bool {
-        self.models.iter().any(|m| m == model)
-            || Self::matches_pattern(model)
+        self.models.iter().any(|m| m == model) || Self::matches_pattern(model)
     }
 
     fn supported_models(&self) -> Vec<String> {
@@ -122,21 +121,28 @@ pub mod google_utils {
         response: GeminiResponse,
         request_model: &str,
     ) -> ChatCompletionResponse {
-        let content = response.candidates
+        let content = response
+            .candidates
             .first()
             .map(|c| {
-                c.content.parts.iter()
+                c.content
+                    .parts
+                    .iter()
                     .map(|p| p.text.clone())
                     .collect::<Vec<_>>()
                     .join("")
             })
             .unwrap_or_default();
 
-        let (input_tokens, output_tokens) = response.usage_metadata
+        let (input_tokens, output_tokens) = response
+            .usage_metadata
             .map(|u| (u.prompt_token_count, u.candidates_token_count))
             .unwrap_or((0, 0));
 
-        let id = format!("chatcmpl-gemini-{}", uuid::Uuid::new_v4().to_string().replace("-", "")[..12].to_string());
+        let id = format!(
+            "chatcmpl-gemini-{}",
+            &uuid::Uuid::new_v4().to_string().replace("-", "")[..12]
+        );
 
         ChatCompletionResponse::simple(
             id,
@@ -184,10 +190,7 @@ mod tests {
     fn test_message_conversion() {
         use crate::types::Message;
 
-        let messages = vec![
-            Message::user("Hello"),
-            Message::assistant("Hi!"),
-        ];
+        let messages = vec![Message::user("Hello"), Message::assistant("Hi!")];
 
         let converted = google_utils::convert_messages(&messages);
 
@@ -199,8 +202,17 @@ mod tests {
     #[test]
     fn test_finish_reason_mapping() {
         use crate::types::FinishReason;
-        assert_eq!(google_utils::map_finish_reason(Some("STOP")), FinishReason::Stop);
-        assert_eq!(google_utils::map_finish_reason(Some("MAX_TOKENS")), FinishReason::Length);
-        assert_eq!(google_utils::map_finish_reason(Some("SAFETY")), FinishReason::ContentFilter);
+        assert_eq!(
+            google_utils::map_finish_reason(Some("STOP")),
+            FinishReason::Stop
+        );
+        assert_eq!(
+            google_utils::map_finish_reason(Some("MAX_TOKENS")),
+            FinishReason::Length
+        );
+        assert_eq!(
+            google_utils::map_finish_reason(Some("SAFETY")),
+            FinishReason::ContentFilter
+        );
     }
 }

@@ -14,6 +14,7 @@ use std::time::Duration;
 /// Security configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
+#[derive(Default)]
 pub struct SecurityConfig {
     /// API key authentication settings
     pub api_keys: ApiKeyConfig,
@@ -25,18 +26,6 @@ pub struct SecurityConfig {
     pub rate_limiting: RateLimitConfig,
     /// Security headers settings
     pub headers: SecurityHeadersConfig,
-}
-
-impl Default for SecurityConfig {
-    fn default() -> Self {
-        Self {
-            api_keys: ApiKeyConfig::default(),
-            admin: AdminConfig::default(),
-            cors: CorsConfig::default(),
-            rate_limiting: RateLimitConfig::default(),
-            headers: SecurityHeadersConfig::default(),
-        }
-    }
 }
 
 impl SecurityConfig {
@@ -268,10 +257,9 @@ impl CorsConfig {
         self.allowed_origins.iter().any(|allowed| {
             if allowed == "*" {
                 true
-            } else if allowed.starts_with("*.") {
+            } else if let Some(domain) = allowed.strip_prefix("*.") {
                 // Wildcard subdomain matching
-                let domain = &allowed[2..];
-                origin.ends_with(domain) || origin == &allowed[2..]
+                origin.ends_with(domain) || origin == domain
             } else {
                 origin == allowed
             }
@@ -399,7 +387,7 @@ impl Default for SecurityHeadersConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            hsts_enabled: false, // Disabled by default, enable when behind TLS
+            hsts_enabled: false,    // Disabled by default, enable when behind TLS
             hsts_max_age: 31536000, // 1 year
             hsts_include_subdomains: true,
             hsts_preload: false,
@@ -434,15 +422,19 @@ mod humantime_serde_duration {
     fn parse_duration(s: &str) -> Result<Duration, String> {
         let s = s.trim();
         if let Some(secs) = s.strip_suffix('s') {
-            secs.trim().parse::<u64>()
+            secs.trim()
+                .parse::<u64>()
                 .map(Duration::from_secs)
                 .map_err(|_| format!("Invalid duration: {}", s))
         } else if let Some(millis) = s.strip_suffix("ms") {
-            millis.trim().parse::<u64>()
+            millis
+                .trim()
+                .parse::<u64>()
                 .map(Duration::from_millis)
                 .map_err(|_| format!("Invalid duration: {}", s))
         } else if let Some(mins) = s.strip_suffix('m') {
-            mins.trim().parse::<u64>()
+            mins.trim()
+                .parse::<u64>()
                 .map(|m| Duration::from_secs(m * 60))
                 .map_err(|_| format!("Invalid duration: {}", s))
         } else {
@@ -468,8 +460,10 @@ mod tests {
 
     #[test]
     fn test_api_key_validation() {
-        let mut config = ApiKeyConfig::default();
-        config.enabled = true;
+        let mut config = ApiKeyConfig {
+            enabled: true,
+            ..Default::default()
+        };
         assert!(config.validate().is_err());
 
         config.keys.push(ApiKeyEntry {
@@ -503,9 +497,24 @@ mod tests {
     fn test_rate_limit_tiers() {
         let config = RateLimitConfig::default();
 
-        assert_eq!(config.get_tier_config(RateLimitTier::Standard).requests_per_minute, 60);
-        assert_eq!(config.get_tier_config(RateLimitTier::Premium).requests_per_minute, 600);
-        assert_eq!(config.get_tier_config(RateLimitTier::Admin).requests_per_minute, 1000);
+        assert_eq!(
+            config
+                .get_tier_config(RateLimitTier::Standard)
+                .requests_per_minute,
+            60
+        );
+        assert_eq!(
+            config
+                .get_tier_config(RateLimitTier::Premium)
+                .requests_per_minute,
+            600
+        );
+        assert_eq!(
+            config
+                .get_tier_config(RateLimitTier::Admin)
+                .requests_per_minute,
+            1000
+        );
     }
 
     #[test]

@@ -23,11 +23,11 @@
 //! let decision = adapter.consume_routing_decision(&request).await?;
 //! ```
 
+use async_trait::async_trait;
+use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
-use async_trait::async_trait;
-use serde::{Deserialize, Serialize};
 
 /// Routing decision consumed from external routing service
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -271,9 +271,9 @@ pub struct RouterAdapter {
     /// Cache TTL
     cache_ttl: Duration,
     /// Default provider
-    default_provider: String,
+    _default_provider: String,
     /// Default model
-    default_model: String,
+    _default_model: String,
 }
 
 impl RouterAdapter {
@@ -282,8 +282,8 @@ impl RouterAdapter {
         Self {
             rules_cache: Arc::new(parking_lot::RwLock::new(None)),
             cache_ttl: Duration::from_secs(60),
-            default_provider: "openai".to_string(),
-            default_model: "gpt-4".to_string(),
+            _default_provider: "openai".to_string(),
+            _default_model: "gpt-4".to_string(),
         }
     }
 
@@ -292,8 +292,8 @@ impl RouterAdapter {
         Self {
             rules_cache: Arc::new(parking_lot::RwLock::new(None)),
             cache_ttl: Duration::from_secs(60),
-            default_provider: provider.into(),
-            default_model: model.into(),
+            _default_provider: provider.into(),
+            _default_model: model.into(),
         }
     }
 
@@ -306,15 +306,17 @@ impl RouterAdapter {
     /// Evaluate a condition against context
     fn evaluate_condition(condition: &BranchCondition, context: &RoutingContext) -> bool {
         match condition {
-            BranchCondition::ModelMatch(pattern) => {
-                context.model.as_ref().map_or(false, |m| m.contains(pattern))
-            }
+            BranchCondition::ModelMatch(pattern) => context
+                .model
+                .as_ref()
+                .map_or(false, |m| m.contains(pattern)),
             BranchCondition::ProviderMatch(provider) => {
                 context.provider.as_ref().map_or(false, |p| p == provider)
             }
-            BranchCondition::HeaderMatch { name, pattern } => {
-                context.headers.get(name).map_or(false, |v| v.contains(pattern))
-            }
+            BranchCondition::HeaderMatch { name, pattern } => context
+                .headers
+                .get(name)
+                .map_or(false, |v| v.contains(pattern)),
             BranchCondition::TokenThreshold { min, max } => {
                 let tokens = context.input_tokens.unwrap_or(0);
                 let above_min = min.map_or(true, |m| tokens >= m);
@@ -325,7 +327,9 @@ impl RouterAdapter {
             BranchCondition::CapabilityRequired(_) => true, // Simplified
             BranchCondition::PercentageSplit { percentage, .. } => {
                 // Simplified: use hash of client_id for deterministic split
-                let hash = context.client_id.as_ref()
+                let hash = context
+                    .client_id
+                    .as_ref()
                     .map(|id| {
                         let mut h: u64 = 0;
                         for b in id.bytes() {
@@ -336,7 +340,10 @@ impl RouterAdapter {
                     .unwrap_or(0);
                 (hash % 100) < (*percentage * 100.0) as u64
             }
-            BranchCondition::TimeWindow { start_hour, end_hour } => {
+            BranchCondition::TimeWindow {
+                start_hour,
+                end_hour,
+            } => {
                 let current_hour = (chrono::Utc::now().timestamp() / 3600 % 24) as u8;
                 current_hour >= *start_hour && current_hour < *end_hour
             }
@@ -363,10 +370,14 @@ impl RouterConsumer for RouterAdapter {
 
         if let Some(rules) = rules {
             // Evaluate rules in priority order
-            let mut matched_rules: Vec<_> = rules.rules.iter()
+            let mut matched_rules: Vec<_> = rules
+                .rules
+                .iter()
                 .filter(|r| r.enabled)
                 .filter(|r| {
-                    r.conditions.iter().all(|c| Self::evaluate_condition(c, context))
+                    r.conditions
+                        .iter()
+                        .all(|c| Self::evaluate_condition(c, context))
                 })
                 .collect();
 
@@ -414,7 +425,9 @@ impl RouterConsumer for RouterAdapter {
 
         if let Some(rules) = rules.as_ref() {
             if let Some(rule) = rules.rules.iter().find(|r| r.id == rule_id) {
-                let all_match = rule.conditions.iter()
+                let all_match = rule
+                    .conditions
+                    .iter()
                     .all(|c| Self::evaluate_condition(c, context));
                 return Ok(all_match);
             }
@@ -526,7 +539,10 @@ mod tests {
 
         // Token threshold
         assert!(RouterAdapter::evaluate_condition(
-            &BranchCondition::TokenThreshold { min: Some(100), max: Some(1000) },
+            &BranchCondition::TokenThreshold {
+                min: Some(100),
+                max: Some(1000)
+            },
             &context
         ));
 
@@ -559,7 +575,10 @@ mod tests {
         assert_eq!(context.provider, Some("openai".to_string()));
         assert_eq!(context.input_tokens, Some(500));
         assert!(context.streaming);
-        assert_eq!(context.headers.get("X-Request-ID"), Some(&"req-123".to_string()));
+        assert_eq!(
+            context.headers.get("X-Request-ID"),
+            Some(&"req-123".to_string())
+        );
         assert_eq!(context.client_id, Some("client-456".to_string()));
     }
 

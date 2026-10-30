@@ -6,22 +6,22 @@
 //! - Runtime reconfiguration
 //! - Validation
 
-mod models;
-mod latency;
 mod chaos;
+mod latency;
+mod models;
 pub mod security;
 
-pub use models::*;
-pub use latency::*;
 pub use chaos::*;
+pub use latency::*;
+pub use models::*;
 pub use security::SecurityConfig;
 
+use crate::error::{SimulationError, SimulatorResult};
+use crate::types::Provider;
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::path::Path;
 use std::time::Duration;
-use crate::error::{SimulationError, SimulatorResult};
-use crate::types::Provider;
 
 /// Configuration for Phase 7 Intelligence & Expansion (Layer 2)
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -47,8 +47,8 @@ impl Default for IntelligenceIntegrationConfig {
     fn default() -> Self {
         Self {
             enabled: true,
-            max_tokens: 2500,      // Phase 7 budget
-            max_latency_ms: 5000,  // Phase 7 budget
+            max_tokens: 2500,     // Phase 7 budget
+            max_latency_ms: 5000, // Phase 7 budget
             cache_enabled: true,
             cache_ttl_secs: 300,
             retry_enabled: true,
@@ -102,7 +102,7 @@ pub struct RuvVectorIntegrationConfig {
 impl Default for RuvVectorIntegrationConfig {
     fn default() -> Self {
         Self {
-            enabled: true, // RuvVector-first: enabled by default
+            enabled: true,     // RuvVector-first: enabled by default
             service_url: None, // Will use RUVVECTOR_SERVICE_URL env var
             timeout_secs: 30,
             cache_enabled: false, // RuvVector owns caching per SPARC
@@ -111,7 +111,7 @@ impl Default for RuvVectorIntegrationConfig {
             max_retries: 3,
             fallback_to_mock: false, // RuvVector-first: no fallback by default
             require_ruvvector: true, // RuvVector-first: require RuvVector by default
-            allow_mocks: false, // RuvVector-first: no mocks by default
+            allow_mocks: false,      // RuvVector-first: no mocks by default
         }
     }
 }
@@ -119,7 +119,8 @@ impl Default for RuvVectorIntegrationConfig {
 impl RuvVectorIntegrationConfig {
     /// Check if integration should be attempted
     pub fn should_integrate(&self) -> bool {
-        self.enabled && (self.service_url.is_some() || std::env::var("RUVVECTOR_SERVICE_URL").is_ok())
+        self.enabled
+            && (self.service_url.is_some() || std::env::var("RUVVECTOR_SERVICE_URL").is_ok())
     }
 
     /// Convert to adapter configuration
@@ -128,7 +129,9 @@ impl RuvVectorIntegrationConfig {
             return None;
         }
 
-        let service_url = self.service_url.clone()
+        let service_url = self
+            .service_url
+            .clone()
             .or_else(|| std::env::var("RUVVECTOR_SERVICE_URL").ok())?;
 
         Some(crate::adapters::ruvvector::RuvVectorConfig {
@@ -184,19 +187,43 @@ impl Default for SimulatorConfig {
         models.insert("gpt-3.5-turbo".to_string(), ModelConfig::gpt35_turbo());
 
         // Default Anthropic models
-        models.insert("claude-3-5-sonnet-20241022".to_string(), ModelConfig::claude_35_sonnet());
-        models.insert("claude-3-opus-20240229".to_string(), ModelConfig::claude_3_opus());
-        models.insert("claude-3-sonnet-20240229".to_string(), ModelConfig::claude_3_sonnet());
-        models.insert("claude-3-haiku-20240307".to_string(), ModelConfig::claude_3_haiku());
+        models.insert(
+            "claude-3-5-sonnet-20241022".to_string(),
+            ModelConfig::claude_35_sonnet(),
+        );
+        models.insert(
+            "claude-3-opus-20240229".to_string(),
+            ModelConfig::claude_3_opus(),
+        );
+        models.insert(
+            "claude-3-sonnet-20240229".to_string(),
+            ModelConfig::claude_3_sonnet(),
+        );
+        models.insert(
+            "claude-3-haiku-20240307".to_string(),
+            ModelConfig::claude_3_haiku(),
+        );
 
         // Default Google models
         models.insert("gemini-1.5-pro".to_string(), ModelConfig::gemini_15_pro());
-        models.insert("gemini-1.5-flash".to_string(), ModelConfig::gemini_15_flash());
+        models.insert(
+            "gemini-1.5-flash".to_string(),
+            ModelConfig::gemini_15_flash(),
+        );
 
         // Default embedding models
-        models.insert("text-embedding-ada-002".to_string(), ModelConfig::embedding_ada());
-        models.insert("text-embedding-3-small".to_string(), ModelConfig::embedding_3_small());
-        models.insert("text-embedding-3-large".to_string(), ModelConfig::embedding_3_large());
+        models.insert(
+            "text-embedding-ada-002".to_string(),
+            ModelConfig::embedding_ada(),
+        );
+        models.insert(
+            "text-embedding-3-small".to_string(),
+            ModelConfig::embedding_3_small(),
+        );
+        models.insert(
+            "text-embedding-3-large".to_string(),
+            ModelConfig::embedding_3_large(),
+        );
 
         Self {
             server: ServerConfig::default(),
@@ -227,9 +254,11 @@ impl SimulatorConfig {
                 .map_err(|e| SimulationError::Config(format!("TOML parse error: {}", e)))?,
             Some("json") => serde_json::from_str(&content)
                 .map_err(|e| SimulationError::Config(format!("JSON parse error: {}", e)))?,
-            _ => return Err(SimulationError::Config(
-                "Unsupported config file format. Use .yaml, .toml, or .json".to_string()
-            )),
+            _ => {
+                return Err(SimulationError::Config(
+                    "Unsupported config file format. Use .yaml, .toml, or .json".to_string(),
+                ))
+            }
         };
 
         config.validate()?;
@@ -242,9 +271,9 @@ impl SimulatorConfig {
 
         // Override with environment variables
         if let Ok(port) = std::env::var("LLM_SIMULATOR_PORT") {
-            config.server.port = port.parse().map_err(|_| {
-                SimulationError::Config("Invalid port number".to_string())
-            })?;
+            config.server.port = port
+                .parse()
+                .map_err(|_| SimulationError::Config("Invalid port number".to_string()))?;
         }
 
         if let Ok(host) = std::env::var("LLM_SIMULATOR_HOST") {
@@ -252,9 +281,10 @@ impl SimulatorConfig {
         }
 
         if let Ok(seed) = std::env::var("LLM_SIMULATOR_SEED") {
-            config.seed = Some(seed.parse().map_err(|_| {
-                SimulationError::Config("Invalid seed value".to_string())
-            })?);
+            config.seed = Some(
+                seed.parse()
+                    .map_err(|_| SimulationError::Config("Invalid seed value".to_string()))?,
+            );
         }
 
         if let Ok(val) = std::env::var("LLM_SIMULATOR_CHAOS_ENABLED") {
@@ -338,7 +368,10 @@ impl SimulatorConfig {
     pub fn minimal() -> Self {
         let mut models = HashMap::new();
         models.insert("gpt-4".to_string(), ModelConfig::gpt4());
-        models.insert("text-embedding-ada-002".to_string(), ModelConfig::embedding_ada());
+        models.insert(
+            "text-embedding-ada-002".to_string(),
+            ModelConfig::embedding_ada(),
+        );
 
         Self {
             server: ServerConfig::default(),
@@ -496,15 +529,19 @@ mod humantime_serde {
     fn parse_duration(s: &str) -> Result<Duration, String> {
         let s = s.trim();
         if let Some(secs) = s.strip_suffix('s') {
-            secs.trim().parse::<u64>()
+            secs.trim()
+                .parse::<u64>()
                 .map(Duration::from_secs)
                 .map_err(|_| format!("Invalid duration: {}", s))
         } else if let Some(millis) = s.strip_suffix("ms") {
-            millis.trim().parse::<u64>()
+            millis
+                .trim()
+                .parse::<u64>()
                 .map(Duration::from_millis)
                 .map_err(|_| format!("Invalid duration: {}", s))
         } else if let Some(mins) = s.strip_suffix('m') {
-            mins.trim().parse::<u64>()
+            mins.trim()
+                .parse::<u64>()
                 .map(|m| Duration::from_secs(m * 60))
                 .map_err(|_| format!("Invalid duration: {}", s))
         } else {

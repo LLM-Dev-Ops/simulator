@@ -1,9 +1,9 @@
 //! Chaos engineering configuration
 
+use crate::error::{InjectedErrorType, SimulationError, SimulatorResult};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::time::Duration;
-use crate::error::{InjectedErrorType, SimulationError, SimulatorResult};
 
 /// Chaos engineering configuration
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,7 +106,11 @@ impl ErrorInjectionRule {
 
     /// Check if this rule applies to the given model
     pub fn applies_to_model(&self, model: &str) -> bool {
-        self.models.is_empty() || self.models.iter().any(|m| m == model || model.starts_with(m))
+        self.models.is_empty()
+            || self
+                .models
+                .iter()
+                .any(|m| m == model || model.starts_with(m))
     }
 
     /// Check if this rule applies to the given endpoint
@@ -189,22 +193,31 @@ impl Default for RateLimitConfig {
         let mut model_limits = HashMap::new();
 
         // GPT-4 class models (lower limits)
-        model_limits.insert("gpt-4".to_string(), ModelRateLimit {
-            requests_per_minute: 500,
-            tokens_per_minute: 40_000,
-        });
+        model_limits.insert(
+            "gpt-4".to_string(),
+            ModelRateLimit {
+                requests_per_minute: 500,
+                tokens_per_minute: 40_000,
+            },
+        );
 
         // GPT-3.5 class models (higher limits)
-        model_limits.insert("gpt-3.5".to_string(), ModelRateLimit {
-            requests_per_minute: 3500,
-            tokens_per_minute: 90_000,
-        });
+        model_limits.insert(
+            "gpt-3.5".to_string(),
+            ModelRateLimit {
+                requests_per_minute: 3500,
+                tokens_per_minute: 90_000,
+            },
+        );
 
         // Claude models
-        model_limits.insert("claude".to_string(), ModelRateLimit {
-            requests_per_minute: 1000,
-            tokens_per_minute: 100_000,
-        });
+        model_limits.insert(
+            "claude".to_string(),
+            ModelRateLimit {
+                requests_per_minute: 1000,
+                tokens_per_minute: 100_000,
+            },
+        );
 
         Self {
             enabled: false,
@@ -258,6 +271,8 @@ pub struct ModelRateLimit {
 
 impl ModelRateLimit {
     /// Calculate retry-after duration based on tokens used
+    // `max().min()` intentionally maps NaN to the one-second floor; `clamp()` would preserve NaN.
+    #[allow(clippy::manual_clamp)]
     pub fn retry_after(&self, tokens_used: u32) -> Duration {
         if self.tokens_per_minute == 0 {
             return Duration::from_secs(60);
@@ -296,54 +311,48 @@ impl ChaosScenario {
             }
             Self::IntermittentTimeouts => {
                 config.enabled = true;
-                config.errors = vec![
-                    ErrorInjectionRule {
-                        name: "random_timeout".to_string(),
-                        error_type: InjectedErrorType::Timeout,
-                        probability: 0.05,
-                        models: vec![],
-                        endpoints: vec![],
-                        message: Some("Request timed out".to_string()),
-                        status_code: Some(504),
-                        delay_ms: Some(30000),
-                        enabled: true,
-                    },
-                ];
+                config.errors = vec![ErrorInjectionRule {
+                    name: "random_timeout".to_string(),
+                    error_type: InjectedErrorType::Timeout,
+                    probability: 0.05,
+                    models: vec![],
+                    endpoints: vec![],
+                    message: Some("Request timed out".to_string()),
+                    status_code: Some(504),
+                    delay_ms: Some(30000),
+                    enabled: true,
+                }];
             }
             Self::RateLimitStress => {
                 config.enabled = true;
                 config.rate_limiting.enabled = true;
                 config.rate_limiting.requests_per_minute = 10;
                 config.rate_limiting.tokens_per_minute = 1000;
-                config.errors = vec![
-                    ErrorInjectionRule {
-                        name: "rate_limit".to_string(),
-                        error_type: InjectedErrorType::RateLimit,
-                        probability: 0.3,
-                        models: vec![],
-                        endpoints: vec![],
-                        message: Some("Rate limit exceeded".to_string()),
-                        status_code: Some(429),
-                        delay_ms: None,
-                        enabled: true,
-                    },
-                ];
+                config.errors = vec![ErrorInjectionRule {
+                    name: "rate_limit".to_string(),
+                    error_type: InjectedErrorType::RateLimit,
+                    probability: 0.3,
+                    models: vec![],
+                    endpoints: vec![],
+                    message: Some("Rate limit exceeded".to_string()),
+                    status_code: Some(429),
+                    delay_ms: None,
+                    enabled: true,
+                }];
             }
             Self::HighLatency => {
                 config.enabled = true;
-                config.errors = vec![
-                    ErrorInjectionRule {
-                        name: "high_latency".to_string(),
-                        error_type: InjectedErrorType::Timeout,
-                        probability: 0.0, // No actual errors, just delay
-                        models: vec![],
-                        endpoints: vec![],
-                        message: None,
-                        status_code: None,
-                        delay_ms: Some(5000),
-                        enabled: true,
-                    },
-                ];
+                config.errors = vec![ErrorInjectionRule {
+                    name: "high_latency".to_string(),
+                    error_type: InjectedErrorType::Timeout,
+                    probability: 0.0, // No actual errors, just delay
+                    models: vec![],
+                    endpoints: vec![],
+                    message: None,
+                    status_code: None,
+                    delay_ms: Some(5000),
+                    enabled: true,
+                }];
             }
             Self::PartialOutage => {
                 config.enabled = true;
@@ -375,19 +384,17 @@ impl ChaosScenario {
             }
             Self::FullOutage => {
                 config.enabled = true;
-                config.errors = vec![
-                    ErrorInjectionRule {
-                        name: "full_outage".to_string(),
-                        error_type: InjectedErrorType::ServiceUnavailable,
-                        probability: 1.0,
-                        models: vec![],
-                        endpoints: vec![],
-                        message: Some("Service is currently unavailable".to_string()),
-                        status_code: Some(503),
-                        delay_ms: None,
-                        enabled: true,
-                    },
-                ];
+                config.errors = vec![ErrorInjectionRule {
+                    name: "full_outage".to_string(),
+                    error_type: InjectedErrorType::ServiceUnavailable,
+                    probability: 1.0,
+                    models: vec![],
+                    endpoints: vec![],
+                    message: Some("Service is currently unavailable".to_string()),
+                    status_code: Some(503),
+                    delay_ms: None,
+                    enabled: true,
+                }];
             }
             Self::Custom => {
                 // No changes - use existing config

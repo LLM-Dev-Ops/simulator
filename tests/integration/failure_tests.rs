@@ -35,9 +35,12 @@ async fn test_missing_required_fields() {
 
     // Missing model field
     let response = server
-        .post("/v1/chat/completions", json!({
-            "messages": [{"role": "user", "content": "Hello"}]
-        }))
+        .post(
+            "/v1/chat/completions",
+            json!({
+                "messages": [{"role": "user", "content": "Hello"}]
+            }),
+        )
         .await;
 
     assert!(response.status().is_client_error());
@@ -48,10 +51,13 @@ async fn test_empty_messages() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/chat/completions", json!({
-            "model": "gpt-4",
-            "messages": []
-        }))
+        .post(
+            "/v1/chat/completions",
+            json!({
+                "model": "gpt-4",
+                "messages": []
+            }),
+        )
         .await;
 
     // Empty messages might return error or succeed with empty response
@@ -65,7 +71,10 @@ async fn test_model_not_found() {
     let server = TestServer::spawn().await;
 
     let response = server
-        .post("/v1/chat/completions", chat_request("nonexistent-model-xyz", "Test"))
+        .post(
+            "/v1/chat/completions",
+            chat_request("nonexistent-model-xyz", "Test"),
+        )
         .await;
 
     assert_eq!(response.status().as_u16(), 404);

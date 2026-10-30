@@ -28,43 +28,43 @@
 //! - Retry logic with exponential backoff for upstream calls
 //! - Shared infrastructure context across adapters
 
+pub mod intelligence;
 pub mod latency_lens;
+pub mod memory_graph;
 pub mod observatory;
 pub mod router;
-pub mod memory_graph;
 pub mod ruvvector;
-pub mod intelligence;
 
 // Re-export primary consumer traits
 pub use latency_lens::LatencyLensConsumer;
+pub use memory_graph::MemoryGraphConsumer;
 pub use observatory::ObservatoryConsumer;
 pub use router::RouterConsumer;
-pub use memory_graph::MemoryGraphConsumer;
-pub use ruvvector::{RuvVectorConsumer, RuvVectorAdapter, RuvVectorConfig, RuvVectorError, OptionalRuvVectorAdapter};
+pub use ruvvector::{
+    OptionalRuvVectorAdapter, RuvVectorAdapter, RuvVectorConfig, RuvVectorConsumer, RuvVectorError,
+};
 
 // Phase 7: Intelligence & Expansion (Layer 2)
 pub use intelligence::{
-    IntelligenceConsumer, IntelligenceAdapter, IntelligenceConfig, IntelligenceError,
-    IntelligenceStats, OptionalIntelligenceAdapter,
-    SignalType, DecisionSignal, SignalPayload,
-    HypothesisPayload, SimulationOutcomePayload, ConfidenceDeltaPayload,
-    ReasoningContext, SimulationScenario, ConfidenceAssessment,
-    MAX_TOKENS, MAX_LATENCY_MS,
+    ConfidenceAssessment, ConfidenceDeltaPayload, DecisionSignal, HypothesisPayload,
+    IntelligenceAdapter, IntelligenceConfig, IntelligenceConsumer, IntelligenceError,
+    IntelligenceStats, OptionalIntelligenceAdapter, ReasoningContext, SignalPayload, SignalType,
+    SimulationOutcomePayload, SimulationScenario, MAX_LATENCY_MS, MAX_TOKENS,
 };
 
 // FEU (Foundational Execution Unit) types
-pub use observatory::FeuSpanKind;
+pub use crate::telemetry::tracing_ext::{
+    ExecutionTrace, FeuSpanCollector, FeuValidationError, SpanArtifact, FEU_ROOT_PARENT,
+};
 pub use intelligence::FeuIntelligenceConsumer;
 pub use memory_graph::FeuMemoryGraphConsumer;
-pub use crate::telemetry::tracing_ext::{
-    FeuSpanCollector, FeuValidationError, ExecutionTrace, SpanArtifact, FEU_ROOT_PARENT,
-};
+pub use observatory::FeuSpanKind;
 
-use std::sync::Arc;
 use parking_lot::RwLock;
+use std::sync::Arc;
 
 use crate::adapters::observatory::SpanStatus;
-use crate::infra::{SharedInfraContext, shared_infra_context};
+use crate::infra::{shared_infra_context, SharedInfraContext};
 
 /// Unified adapter registry for managing all Phase 2B+ integrations
 pub struct AdapterRegistry {
@@ -199,10 +199,7 @@ impl AdapterRegistry {
     /// Execute all registered adapters with FEU span tracking.
     /// Creates a repo-level span and one agent span per registered adapter.
     /// Returns the complete ExecutionTrace with all spans and artifacts.
-    pub fn execute_traced(
-        &self,
-        request_id: &str,
-    ) -> Result<ExecutionTrace, FeuValidationError> {
+    pub fn execute_traced(&self, request_id: &str) -> Result<ExecutionTrace, FeuValidationError> {
         let mut collector = FeuSpanCollector::new(Some(request_id.to_string()));
 
         if self.observatory.is_some() {
@@ -274,8 +271,8 @@ mod tests {
 
     #[test]
     fn test_execute_traced_with_adapters() {
-        use crate::adapters::observatory::ObservatoryAdapter;
         use crate::adapters::memory_graph::MemoryGraphAdapter;
+        use crate::adapters::observatory::ObservatoryAdapter;
 
         let registry = AdapterRegistry::new()
             .with_observatory(Arc::new(ObservatoryAdapter::new()))

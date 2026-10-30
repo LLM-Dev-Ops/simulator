@@ -45,30 +45,28 @@ pub mod types;
 pub use config::SimulatorConfig;
 pub use engine::SimulationEngine;
 pub use error::{SimulationError, SimulatorResult};
-pub use infra::{Cache, CacheConfig, InfraContext, RetryPolicy, RetryConfig};
+pub use infra::{Cache, CacheConfig, InfraContext, RetryConfig, RetryPolicy};
 pub use server::run_server;
 
 // Re-export RuvVector adapter types for easy integration
 pub use adapters::ruvvector::{
-    RuvVectorAdapter, RuvVectorConfig, RuvVectorError, RuvVectorConsumer,
-    OptionalRuvVectorAdapter, QueryRequest, QueryResponse, QueryResult,
-    SimulateRequest, SimulateResponse, RUVVECTOR_SERVICE_URL_ENV,
+    OptionalRuvVectorAdapter, QueryRequest, QueryResponse, QueryResult, RuvVectorAdapter,
+    RuvVectorConfig, RuvVectorConsumer, RuvVectorError, SimulateRequest, SimulateResponse,
+    RUVVECTOR_SERVICE_URL_ENV,
 };
 
 // Re-export FEU (Foundational Execution Unit) types
-pub use telemetry::{
-    FeuSpanCollector, FeuValidationError, ExecutionTrace, SpanArtifact, FEU_ROOT_PARENT,
-};
 pub use adapters::observatory::FeuSpanKind;
+pub use telemetry::{
+    ExecutionTrace, FeuSpanCollector, FeuValidationError, SpanArtifact, FEU_ROOT_PARENT,
+};
 
 // Re-export Phase 7 Intelligence & Expansion (Layer 2) types
 pub use adapters::intelligence::{
-    IntelligenceAdapter, IntelligenceConfig, IntelligenceError, IntelligenceConsumer,
-    IntelligenceStats, OptionalIntelligenceAdapter,
-    SignalType, DecisionSignal, SignalPayload,
-    HypothesisPayload, SimulationOutcomePayload, ConfidenceDeltaPayload,
-    ReasoningContext, SimulationScenario, ConfidenceAssessment,
-    MAX_TOKENS, MAX_LATENCY_MS,
+    ConfidenceAssessment, ConfidenceDeltaPayload, DecisionSignal, HypothesisPayload,
+    IntelligenceAdapter, IntelligenceConfig, IntelligenceConsumer, IntelligenceError,
+    IntelligenceStats, OptionalIntelligenceAdapter, ReasoningContext, SignalPayload, SignalType,
+    SimulationOutcomePayload, SimulationScenario, MAX_LATENCY_MS, MAX_TOKENS,
 };
 
 /// Library version

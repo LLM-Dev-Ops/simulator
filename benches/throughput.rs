@@ -1,8 +1,8 @@
 //! Throughput benchmarks for LLM-Simulator
 
 use criterion::{black_box, criterion_group, criterion_main, Criterion, Throughput};
-use llm_simulator::{SimulatorConfig, SimulationEngine};
-use llm_simulator::types::{Message, ChatCompletionRequest};
+use llm_simulator::types::{ChatCompletionRequest, Message};
+use llm_simulator::{SimulationEngine, SimulatorConfig};
 use tokio::runtime::Runtime;
 
 fn create_engine() -> SimulationEngine {
@@ -29,11 +29,7 @@ fn bench_chat_completion(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("single_request", |b| {
-        b.iter(|| {
-            rt.block_on(async {
-                black_box(engine.chat_completion(&request).await.unwrap())
-            })
-        })
+        b.iter(|| rt.block_on(async { black_box(engine.chat_completion(&request).await.unwrap()) }))
     });
 
     group.finish();
@@ -43,10 +39,7 @@ fn bench_concurrent_requests(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let engine = std::sync::Arc::new(create_engine());
 
-    let request = ChatCompletionRequest::new(
-        "gpt-4",
-        vec![Message::user("Hello")],
-    );
+    let request = ChatCompletionRequest::new("gpt-4", vec![Message::user("Hello")]);
 
     let mut group = c.benchmark_group("concurrent_requests");
 
@@ -55,13 +48,13 @@ fn bench_concurrent_requests(c: &mut Criterion) {
         group.bench_function(format!("concurrent_{}", concurrency), |b| {
             b.iter(|| {
                 rt.block_on(async {
-                    let tasks: Vec<_> = (0..*concurrency).map(|_| {
-                        let engine = engine.clone();
-                        let req = request.clone();
-                        tokio::spawn(async move {
-                            engine.chat_completion(&req).await.unwrap()
+                    let tasks: Vec<_> = (0..*concurrency)
+                        .map(|_| {
+                            let engine = engine.clone();
+                            let req = request.clone();
+                            tokio::spawn(async move { engine.chat_completion(&req).await.unwrap() })
                         })
-                    }).collect();
+                        .collect();
 
                     for task in tasks {
                         black_box(task.await.unwrap());
@@ -78,7 +71,7 @@ fn bench_embeddings(c: &mut Criterion) {
     let rt = Runtime::new().unwrap();
     let engine = create_engine();
 
-    use llm_simulator::types::{EmbeddingsRequest, EmbeddingInput};
+    use llm_simulator::types::{EmbeddingInput, EmbeddingsRequest};
 
     let request = EmbeddingsRequest {
         model: "text-embedding-ada-002".to_string(),
@@ -92,11 +85,7 @@ fn bench_embeddings(c: &mut Criterion) {
     group.throughput(Throughput::Elements(1));
 
     group.bench_function("single_embedding", |b| {
-        b.iter(|| {
-            rt.block_on(async {
-                black_box(engine.embeddings(&request).await.unwrap())
-            })
-        })
+        b.iter(|| rt.block_on(async { black_box(engine.embeddings(&request).await.unwrap()) }))
     });
 
     // Batch embeddings
@@ -117,9 +106,7 @@ fn bench_embeddings(c: &mut Criterion) {
     group.throughput(Throughput::Elements(5));
     group.bench_function("batch_5_embeddings", |b| {
         b.iter(|| {
-            rt.block_on(async {
-                black_box(engine.embeddings(&batch_request).await.unwrap())
-            })
+            rt.block_on(async { black_box(engine.embeddings(&batch_request).await.unwrap()) })
         })
     });
 
@@ -127,8 +114,8 @@ fn bench_embeddings(c: &mut Criterion) {
 }
 
 fn bench_response_generation(c: &mut Criterion) {
-    use llm_simulator::engine::ResponseGenerator;
     use llm_simulator::config::GenerationConfig;
+    use llm_simulator::engine::ResponseGenerator;
 
     let generator = ResponseGenerator::with_seed(42);
     let messages = vec![Message::user("Hello!")];
@@ -139,9 +126,7 @@ fn bench_response_generation(c: &mut Criterion) {
     for token_count in [100, 500, 1000, 2000].iter() {
         group.throughput(Throughput::Elements(*token_count as u64));
         group.bench_function(format!("generate_{}_tokens", token_count), |b| {
-            b.iter(|| {
-                black_box(generator.generate_response(&messages, *token_count, &config))
-            })
+            b.iter(|| black_box(generator.generate_response(&messages, *token_count, &config)))
         });
     }
 

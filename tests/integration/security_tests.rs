@@ -2,8 +2,8 @@
 
 use super::common::*;
 use llm_simulator::config::{
-    SimulatorConfig,
     security::{ApiKeyConfig, ApiKeyEntry, ApiKeyRole, RateLimitTier},
+    SimulatorConfig,
 };
 
 fn config_with_auth() -> SimulatorConfig {
