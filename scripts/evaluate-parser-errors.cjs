@@ -41,9 +41,9 @@ async function main() {
       const retained = !prior || JSON.stringify(prior.names) === JSON.stringify(names);
       checks.audit = run('npm', ['audit', '--json'], 30);
       checks.prodAudit = run('npm', ['audit', '--omit=dev', '--json'], 30);
-      checks.rust = run('cargo', ['+1.88.0', 'test', '--locked', '--offline', '--release', '-j2'], 120);
-      checks.rustBuild = run('cargo', ['+1.88.0', 'build', '--locked', '--offline', '--release', '-j2'], 90);
-      checks.clippy = run('cargo', ['+1.88.0', 'clippy', '--locked', '--offline', '--all-targets', '--all-features', '-j2', '--', '-D', 'warnings'], 90);
+      checks.rust = run('cargo', ['+1.88.0', 'test', '--locked', '--offline', '--release', '-j2'], 60);
+      checks.rustBuild = run('cargo', ['+1.88.0', 'build', '--locked', '--offline', '--release', '-j2'], 45);
+      checks.clippy = run('cargo', ['+1.88.0', 'clippy', '--locked', '--offline', '--all-targets', '--all-features', '-j2', '--', '-D', 'warnings'], 45);
       checks.format = run('cargo', ['+1.88.0', 'fmt', '--all', '--', '--check'], 30);
       measures[policy.revision] = { checks, observed, names, retained };
       writeFileSync(out + '.checkpoint', JSON.stringify(measures, null, 2));

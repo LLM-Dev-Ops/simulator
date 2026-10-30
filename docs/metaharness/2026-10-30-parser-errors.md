@@ -26,3 +26,8 @@ serialization; no production latency, model efficacy or speedup claim is made.
 Rollback via protected PR: revert this cycle's implementation commit, then its fixture commit,
 preserving earlier CORS/security work. The signed inverse retains exact parent index.js bytes.
 No deployed data, service persistence, IAM, secret configuration or Rust source is changed.
+
+Final expanded-contract bounds are frozen equally for both revisions: Rust tests60s,
+release build45s, strict all-feature Clippy45s. Earlier longer-budget attempts are
+retained separately. A timeout fails the gate; shortened bounds never substitute for
+completed tests or MSRV1.83 CI verification.
