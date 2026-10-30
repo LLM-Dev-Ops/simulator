@@ -585,5 +585,28 @@ app.use((req, res) => {
   });
 });
 
+// Parser failures occur before route handlers. Keep responses JSON and never echo
+// parser messages, request bodies, stack traces, or filesystem paths to callers.
+app.use((err, req, res, next) => {
+  if (res.headersSent) return next(err);
+  const errors = {
+    'entity.parse.failed': [400, 'INVALID_JSON', 'Request body must contain valid JSON'],
+    'entity.too.large': [413, 'PAYLOAD_TOO_LARGE', 'Request body exceeds the 1 MiB limit'],
+    'charset.unsupported': [415, 'UNSUPPORTED_MEDIA_TYPE', 'Unsupported JSON charset'],
+    'encoding.unsupported': [415, 'UNSUPPORTED_MEDIA_TYPE', 'Unsupported content encoding'],
+    'request.aborted': [400, 'INVALID_REQUEST', 'Request body was interrupted'],
+    'request.size.invalid': [400, 'INVALID_REQUEST', 'Invalid request body length'],
+  };
+  const [status, code, message] = Object.hasOwn(errors, err.type)
+    ? errors[err.type]
+    : [500, 'INTERNAL_ERROR', 'An internal error occurred'];
+  res.set('X-Content-Type-Options', 'nosniff');
+  return res.status(status).json({
+    error: { code, message },
+    execution_metadata: buildExecutionMetadata(req),
+    layers_executed: [{ layer: 'AGENT_ROUTING', status: 'failed' }],
+  });
+});
+
 // Cloud Function entry point
 exports.handler = app;
